@@ -1,0 +1,13 @@
+# Development dependencies for Congfu Chess
+
+# Testing
+pytest>=7.0
+pytest-cov>=3.0
+
+# Code quality (optional, for development)
+pylint>=2.0
+black>=22.0
+mypy>=0.900
+
+# Documentation (optional)
+sphinx>=4.0
