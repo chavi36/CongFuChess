@@ -1,13 +1,11 @@
-# Development dependencies for Congfu Chess
+# Development dependencies for Kungfu Chess
 
-# Testing
+# Testing — the project uses the built-in unittest module.
+# pytest is optional but supported.
 pytest>=7.0
 pytest-cov>=3.0
 
-# Code quality (optional, for development)
+# Code quality (optional)
 pylint>=2.0
 black>=22.0
 mypy>=0.900
-
-# Documentation (optional)
-sphinx>=4.0

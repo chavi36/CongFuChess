@@ -1,98 +1,84 @@
+# ==============================================================
 # Python
+# ==============================================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
+
+# ==============================================================
+# Distribution / packaging
+# ==============================================================
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 MANIFEST
+wheels/
+sdist/
 
+# ==============================================================
 # Virtual environments
+# ==============================================================
 venv/
-ENV/
+.venv/
 env/
-.venv
-env.bak/
-venv.bak/
+ENV/
 
-# Testing & Coverage
+# ==============================================================
+# Testing & coverage
+# ==============================================================
 .pytest_cache/
 .coverage
 .coverage.*
 htmlcov/
 .tox/
-.hypothesis/
-*.cover
 .nox/
+.hypothesis/
 
-# IDEs
+# ==============================================================
+# Type checkers
+# ==============================================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# ==============================================================
+# IDEs & editors
+# ==============================================================
 .vscode/
 .idea/
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
 *.swp
 *.swo
 *~
-.DS_Store
-Thumbs.db
-*.sublime-project
-*.sublime-workspace
 
+# ==============================================================
 # OS
+# ==============================================================
 .DS_Store
-.DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
+Thumbs.db
 ehthumbs.db
 
-# Environment variables
+# ==============================================================
+# Environment & secrets
+# ==============================================================
 .env
 .env.local
 .env.*.local
 
-# Logs
+# ==============================================================
+# Logs & temp files
+# ==============================================================
 *.log
 logs/
-
-# Temporary files
 *.tmp
 *.bak
-*.backup
-*~
-
-# IDE specific
-.project
-.pydevproject
-.settings/
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Game-specific
-game_save.dat
-replay_*.json
-*.replay
-
-# Backups
-*.backup
-backup/
