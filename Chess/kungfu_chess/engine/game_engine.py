@@ -96,7 +96,7 @@ class GameEngine:
 
         # 4. Airborne conflict at scheduling time.
         if self.arbiter.has_airborne_conflict(
-                to_row, to_col, piece_color, start_time, start_time):
+                to_row, to_col, piece_color, start_time, arrival_time):
             self.board.set_piece(from_row, from_col, EMPTY_SQUARE)  # piece destroyed
             return False
 
