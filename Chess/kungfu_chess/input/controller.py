@@ -19,8 +19,9 @@ class Command:
 
 
 class CommandExecutor:
-    def __init__(self, game_engine: GameEngine):
+    def __init__(self, game_engine: GameEngine, on_print=None):
         self.engine = game_engine
+        self._on_print = on_print
 
     def execute(self, command: Command) -> bool:
         if command.cmd_type == 'print':
@@ -38,7 +39,8 @@ class CommandExecutor:
     def _execute_print(self) -> bool:
         from kungfu_chess.io.board_printer import print_board
         self.engine.process_pending_moves()
-        print_board(self.engine.board)
+        if self._on_print:
+            self._on_print(self.engine.board)
         return True
 
     def _execute_jump(self, row: int, col: int) -> bool:

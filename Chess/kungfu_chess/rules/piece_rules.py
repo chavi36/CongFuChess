@@ -4,7 +4,7 @@ Contains per-piece-type validation helpers used by RuleEngine.
 """
 
 from kungfu_chess.model.board import BoardInterface
-from kungfu_chess.model.config import EMPTY_SQUARE, PAWN_CONFIG
+from kungfu_chess.model.config import EMPTY_SQUARE, get_pawn_config
 
 
 class PieceRules:
@@ -15,7 +15,7 @@ class PieceRules:
 
     def is_valid_pawn_move(self, from_row: int, from_col: int,
                            to_row: int, to_col: int, color: str) -> bool:
-        config = PAWN_CONFIG['white' if color == 'w' else 'black']
+        config = get_pawn_config(self.board.get_height())['white' if color == 'w' else 'black']
         direction = config['direction']
         start_row = config['start_row']
         dr, dc = to_row - from_row, to_col - from_col
@@ -38,20 +38,35 @@ class PieceRules:
         dc = abs(to_col - from_col)
         return (dr == 1 and dc == 2) or (dr == 2 and dc == 1)
 
-    def is_valid_sliding_move(self, from_row: int, from_col: int,
-                              to_row: int, to_col: int,
-                              piece_type: str) -> bool:
+    def is_valid_king_move(self, from_row: int, from_col: int,
+                           to_row: int, to_col: int) -> bool:
+        dr = abs(to_row - from_row)
+        dc = abs(to_col - from_col)
+        return dr <= 1 and dc <= 1 and (dr, dc) != (0, 0)
+
+    def is_valid_rook_move(self, from_row: int, from_col: int,
+                           to_row: int, to_col: int) -> bool:
+        dr = to_row - from_row
+        dc = to_col - from_col
+        if dr != 0 and dc != 0:
+            return False
+        return self._is_path_clear(from_row, from_col, to_row, to_col)
+
+    def is_valid_bishop_move(self, from_row: int, from_col: int,
+                             to_row: int, to_col: int) -> bool:
+        dr = to_row - from_row
+        dc = to_col - from_col
+        if abs(dr) != abs(dc) or dr == 0:
+            return False
+        return self._is_path_clear(from_row, from_col, to_row, to_col)
+
+    def is_valid_queen_move(self, from_row: int, from_col: int,
+                            to_row: int, to_col: int) -> bool:
         dr = to_row - from_row
         dc = to_col - from_col
         if dr == 0 and dc == 0:
             return False
-        if piece_type == 'K':
-            return abs(dr) <= 1 and abs(dc) <= 1
-        if piece_type == 'R' and dr != 0 and dc != 0:
-            return False
-        if piece_type == 'B' and abs(dr) != abs(dc):
-            return False
-        if piece_type == 'Q' and dr != 0 and dc != 0 and abs(dr) != abs(dc):
+        if dr != 0 and dc != 0 and abs(dr) != abs(dc):
             return False
         return self._is_path_clear(from_row, from_col, to_row, to_col)
 

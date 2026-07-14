@@ -65,43 +65,43 @@ class TestPieceRules(unittest.TestCase):
         data = _empty()
         data[4][4] = 'wR'
         rules = PieceRules(TextBoard(data))
-        self.assertTrue(rules.is_valid_sliding_move(4, 4, 4, 7, 'R'))
+        self.assertTrue(rules.is_valid_rook_move(4, 4, 4, 7))
 
     def test_rook_blocked(self):
         data = _empty()
         data[4][4] = 'wR'
         data[4][6] = 'bN'
         rules = PieceRules(TextBoard(data))
-        self.assertFalse(rules.is_valid_sliding_move(4, 4, 4, 7, 'R'))
+        self.assertFalse(rules.is_valid_rook_move(4, 4, 4, 7))
 
     def test_rook_diagonal_invalid(self):
         data = _empty()
         rules = PieceRules(TextBoard(data))
-        self.assertFalse(rules.is_valid_sliding_move(4, 4, 5, 5, 'R'))
+        self.assertFalse(rules.is_valid_rook_move(4, 4, 5, 5))
 
     # ---- bishop ----
     def test_bishop_diagonal(self):
         data = _empty()
         data[4][4] = 'wB'
         rules = PieceRules(TextBoard(data))
-        self.assertTrue(rules.is_valid_sliding_move(4, 4, 7, 7, 'B'))
+        self.assertTrue(rules.is_valid_bishop_move(4, 4, 7, 7))
 
     def test_bishop_straight_invalid(self):
         data = _empty()
         rules = PieceRules(TextBoard(data))
-        self.assertFalse(rules.is_valid_sliding_move(4, 4, 4, 7, 'B'))
+        self.assertFalse(rules.is_valid_bishop_move(4, 4, 4, 7))
 
     # ---- king ----
     def test_king_one_step(self):
         data = _empty()
         rules = PieceRules(TextBoard(data))
-        self.assertTrue(rules.is_valid_sliding_move(4, 4, 5, 5, 'K'))
-        self.assertTrue(rules.is_valid_sliding_move(4, 4, 4, 5, 'K'))
+        self.assertTrue(rules.is_valid_king_move(4, 4, 5, 5))
+        self.assertTrue(rules.is_valid_king_move(4, 4, 4, 5))
 
     def test_king_two_steps_invalid(self):
         data = _empty()
         rules = PieceRules(TextBoard(data))
-        self.assertFalse(rules.is_valid_sliding_move(4, 4, 4, 6, 'K'))
+        self.assertFalse(rules.is_valid_king_move(4, 4, 4, 6))
 
 
 if __name__ == '__main__':

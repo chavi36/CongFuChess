@@ -37,8 +37,10 @@ class TestCommandExecutor(unittest.TestCase):
         self.assertEqual(self.engine.state.clock, 750)
 
     def test_print_outputs_board(self):
+        from kungfu_chess.io.board_printer import print_board
         with patch('sys.stdout', new=StringIO()) as out:
-            self.executor.execute(Command('print'))
+            executor = CommandExecutor(self.engine, on_print=lambda b: print(print_board(b), flush=True))
+            executor.execute(Command('print'))
             self.assertIn('wR', out.getvalue())
 
     def test_no_action_after_game_over(self):

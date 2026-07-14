@@ -21,6 +21,20 @@ class GameState:
 
     _blocked_sources:  set                  = field(default_factory=set)
     _airborne_history: List[AirborneEvent]  = field(default_factory=list)
+    _cooldowns:        dict                  = field(default_factory=dict)  # (row,col) -> end_time
+
+    # ------------------------------------------------------------------
+    # Cooldown tracking
+    # ------------------------------------------------------------------
+
+    def set_cooldown(self, row: int, col: int, end_time: int) -> None:
+        self._cooldowns[(row, col)] = end_time
+
+    def clear_cooldown(self, row: int, col: int) -> None:
+        self._cooldowns.pop((row, col), None)
+
+    def is_on_cooldown(self, row: int, col: int) -> bool:
+        return (row, col) in self._cooldowns and self.clock < self._cooldowns[(row, col)]
 
     # ------------------------------------------------------------------
     # Blocked-source tracking

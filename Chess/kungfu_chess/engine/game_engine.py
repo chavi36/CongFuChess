@@ -32,6 +32,7 @@ class GameEngine:
         self.state       = GameState(board)
         self.rule_engine = RuleEngine(board)
         self.arbiter     = RealTimeArbiter(board, self.state)
+        self.arbiter.set_rule_engine(self.rule_engine)
         self._validate_board()
 
     # ------------------------------------------------------------------
@@ -83,6 +84,8 @@ class GameEngine:
         # 2. Source state.
         if self.state.is_source_blocked(from_row, from_col):
             return False
+        if self.state.is_on_cooldown(from_row, from_col):
+            return False
         if self.board.is_empty(from_row, from_col):
             return False
         # 3. Rule check.
@@ -101,15 +104,32 @@ class GameEngine:
             return False
 
         # 5. Hand off to arbiter.
+        path = self._compute_path(from_row, from_col, to_row, to_col)
         motion = MoveMotion(
             from_row=from_row, from_col=from_col,
             to_row=to_row,     to_col=to_col,
             start_time=start_time, arrival_time=arrival_time,
             piece_code=piece_code,
+            path=path,
         )
         self.arbiter.register_move(motion)
         self.state.block_source(from_row, from_col)
         return True
+
+    @staticmethod
+    def _compute_path(from_row: int, from_col: int,
+                      to_row: int, to_col: int) -> list:
+        """Return list of (row, col) from source to destination inclusive."""
+        dr = 0 if from_row == to_row else (1 if to_row > from_row else -1)
+        dc = 0 if from_col == to_col else (1 if to_col > from_col else -1)
+        path = []
+        r, c = from_row, from_col
+        while (r, c) != (to_row, to_col):
+            path.append((r, c))
+            r += dr
+            c += dc
+        path.append((to_row, to_col))
+        return path
 
     def schedule_jump(self, row: int, col: int, start_time: int) -> bool:
         """Register a jump (airborne) event for the piece at (row, col)."""
@@ -118,6 +138,8 @@ class GameEngine:
         if self.board.is_empty(row, col):
             return False
         if self.state.is_source_blocked(row, col):
+            return False
+        if self.state.is_on_cooldown(row, col):
             return False
 
         piece_color = self.board.get_piece(row, col)[0]

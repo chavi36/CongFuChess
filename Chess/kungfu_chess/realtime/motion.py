@@ -20,6 +20,7 @@ class MoveMotion:
     start_time: int
     arrival_time: int
     piece_code: str       # snapshot at scheduling time
+    path: list = None     # list of (row, col) from source to destination (exclusive)
 
 
 @dataclass

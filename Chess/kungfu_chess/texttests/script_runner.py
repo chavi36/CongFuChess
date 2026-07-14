@@ -7,24 +7,34 @@ from typing import List
 
 from kungfu_chess.model.board import TextBoard
 from kungfu_chess.engine.game_engine import GameEngine
-from kungfu_chess.input.controller import CommandExecutor
+from kungfu_chess.input.controller import CommandExecutor, Command
 from kungfu_chess.texttests.script_parser import ScriptParser
 from kungfu_chess.io.board_parser import load_from_input, validate_board
+from kungfu_chess.io.board_printer import print_board
+
+
+def _text_printer(board) -> None:
+    print(print_board(board), flush=True)
 
 
 class ScriptRunner:
     """Runs a sequence of text commands against a game engine."""
 
-    def __init__(self, board_data: List[List[str]]):
+    def __init__(self, board_data: List[List[str]], on_print=_text_printer):
         board = TextBoard(board_data)
         self.engine = GameEngine(board)
-        self.executor = CommandExecutor(self.engine)
+        self.executor = CommandExecutor(self.engine, on_print=on_print)
 
     def run(self, commands: List[str]) -> None:
+        had_print = False
         for cmd_string in commands:
             command = ScriptParser.parse(cmd_string)
             if command:
+                if command.cmd_type == 'print':
+                    had_print = True
                 self.executor.execute(command)
+        if not had_print:
+            self.executor.execute(Command(cmd_type='print'))
 
 
 def run_from_stdin() -> None:

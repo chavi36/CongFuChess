@@ -29,16 +29,28 @@ PIECE_MOVEMENT_PATTERNS: Dict[str, Dict] = {
     'P': {'type': 'pawn', 'move_forward': 1, 'can_move_two_squares_from_start': True, 'captures_diagonally': True, 'promotion_enabled': True, 'promotion_piece': 'Q'},
 }
 
-PAWN_CONFIG = {
-    'white': {'direction': -1, 'start_row': 6, 'promotion_row': 0},
-    'black': {'direction':  1, 'start_row': 1, 'promotion_row': 7},
-}
+def get_pawn_config(board_height: int) -> dict:
+    return {
+        'white': {'direction': -1, 'start_row': board_height - 2, 'promotion_row': 0},
+        'black': {'direction':  1, 'start_row': 1,                'promotion_row': board_height - 1},
+    }
+
+PAWN_CONFIG = get_pawn_config(8)  # default for backward compatibility
 
 TIME_CONFIG = {
     'jump_duration': 1000,
     'move_time_per_square': 1000,
     'check_airborne_capture_instant': True,
     'check_airborne_capture_arrival': True,
+}
+
+COOLDOWN_CONFIG = {
+    'K': {'move': 500,  'jump': 200},
+    'Q': {'move': 1000, 'jump': 400},
+    'R': {'move': 800,  'jump': 300},
+    'B': {'move': 800,  'jump': 300},
+    'N': {'move': 600,  'jump': 250},
+    'P': {'move': 700,  'jump': 250},
 }
 
 ERROR_MESSAGES = {

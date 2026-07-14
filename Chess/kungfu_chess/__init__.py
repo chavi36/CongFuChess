@@ -1,1 +1,1 @@
-# kungfu_chess package
+# engine package

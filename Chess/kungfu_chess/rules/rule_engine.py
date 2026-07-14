@@ -35,9 +35,14 @@ class RuleEngine:
         if piece_type == 'N':
             return self._piece_rules.is_valid_knight_move(
                 from_row, from_col, to_row, to_col)
-        if piece_type in 'KQRB':
-            return self._piece_rules.is_valid_sliding_move(
-                from_row, from_col, to_row, to_col, piece_type)
+        if piece_type == 'K':
+            return self._piece_rules.is_valid_king_move(from_row, from_col, to_row, to_col)
+        if piece_type == 'R':
+            return self._piece_rules.is_valid_rook_move(from_row, from_col, to_row, to_col)
+        if piece_type == 'B':
+            return self._piece_rules.is_valid_bishop_move(from_row, from_col, to_row, to_col)
+        if piece_type == 'Q':
+            return self._piece_rules.is_valid_queen_move(from_row, from_col, to_row, to_col)
 
         return False
 

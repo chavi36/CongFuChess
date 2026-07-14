@@ -11,7 +11,7 @@ from kungfu_chess.model.config import EMPTY_SQUARE, ERROR_MESSAGES
 
 def load_from_input() -> Tuple[Optional[List[List[str]]], Optional[List[str]]]:
     """Read board data and commands from stdin."""
-    lines = [l.strip() for l in sys.stdin if l.strip()]
+    lines = [l.strip().strip('*') for l in sys.stdin if l.strip().strip('*')]
     if not lines or "Board:" not in lines[0]:
         return None, None
     try:
@@ -31,7 +31,7 @@ def validate_board(board_data: List[List[str]]) -> bool:
     width = len(board_data[0])
     for row in board_data:
         if len(row) != width:
-            print(ERROR_MESSAGES['ROW_WIDTH_MISMATCH'])
+            print(ERROR_MESSAGES['ROW_WIDTH_MISMATCH'], flush=True)
             return False
     valid_colors = {'w', 'b'}
     valid_types  = {'K', 'Q', 'R', 'B', 'N', 'P'}
@@ -41,6 +41,6 @@ def validate_board(board_data: List[List[str]]) -> bool:
                 if (len(token) != 2
                         or token[0] not in valid_colors
                         or token[1] not in valid_types):
-                    print(ERROR_MESSAGES['UNKNOWN_TOKEN'])
+                    print(ERROR_MESSAGES['UNKNOWN_TOKEN'], flush=True)
                     return False
     return True
