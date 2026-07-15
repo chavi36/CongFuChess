@@ -27,14 +27,14 @@ class GameState:
     # Cooldown tracking
     # ------------------------------------------------------------------
 
-    def set_cooldown(self, row: int, col: int, end_time: int) -> None:
-        self._cooldowns[(row, col)] = end_time
+    def set_cooldown(self, row: int, col: int, end_time: int, kind: str = "long_rest") -> None:
+        self._cooldowns[(row, col)] = (end_time, kind)
 
     def clear_cooldown(self, row: int, col: int) -> None:
         self._cooldowns.pop((row, col), None)
 
     def is_on_cooldown(self, row: int, col: int) -> bool:
-        return (row, col) in self._cooldowns and self.clock < self._cooldowns[(row, col)]
+        return (row, col) in self._cooldowns and self.clock < self._cooldowns[(row, col)][0]
 
     # ------------------------------------------------------------------
     # Blocked-source tracking

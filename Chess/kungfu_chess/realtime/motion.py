@@ -22,7 +22,7 @@ class MoveMotion:
     piece_code: str       # snapshot at scheduling time
     path: list = None     # list of (row, col) from source to destination (exclusive)
 
-
+# בשביל לדעת בשביללתפוס ולאכול כאלו שיכנסו לפני הנחיתה
 @dataclass
 class AirborneEvent:
     """A piece that jumped in place — it is immune to capture while airborne."""

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 class Piece:
     color: str
     piece_type: str
-
+# פה זה בעצם ניתן לשינוי מהיר- האחריות ברשות הקלאס של פיס
     @classmethod
     def from_code(cls, code: str) -> 'Piece':
         if len(code) != 2:

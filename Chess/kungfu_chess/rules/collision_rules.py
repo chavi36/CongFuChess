@@ -28,10 +28,24 @@ class CollisionRules:
     # ------------------------------------------------------------------
 
     def is_en_route_collision(self, a: MoveMotion, b: MoveMotion) -> bool:
-        """True if the two motions share any intermediate path square."""
+        """True if the two motions occupy the same square at the same time."""
         if not a.path or not b.path:
             return False
-        return bool(set(a.path[:-1]) & set(b.path[:-1]))
+        shared = set(a.path[:-1]) & set(b.path[:-1])
+        if not shared:
+            return False
+        for square in shared:
+            if self._time_at_square(a, square) == self._time_at_square(b, square):
+                return True
+        return False
+
+    @staticmethod
+    def _time_at_square(motion: MoveMotion, square: tuple) -> int:
+        """Return the clock time when motion passes through square."""
+        idx = motion.path.index(square)
+        seg_count = len(motion.path) - 1
+        duration  = motion.arrival_time - motion.start_time
+        return motion.start_time + (duration * idx // seg_count) if seg_count else motion.start_time
 
     def last_legal_position(self, motion: MoveMotion,
                             blocked_square: Tuple[int, int]) -> Optional[Tuple[int, int]]:

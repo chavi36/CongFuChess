@@ -96,6 +96,7 @@ class GameEngine:
         arrival_time = start_time + distance * TIME_CONFIG['move_time_per_square']
         piece_color  = self.board.get_piece(from_row, from_col)[0]
         piece_code   = self.board.get_piece(from_row, from_col)
+        piece_type   = piece_code[1]
 
         # 4. Airborne conflict at scheduling time.
         if self.arbiter.has_airborne_conflict(
@@ -104,7 +105,7 @@ class GameEngine:
             return False
 
         # 5. Hand off to arbiter.
-        path = self._compute_path(from_row, from_col, to_row, to_col)
+        path = self._compute_path(from_row, from_col, to_row, to_col, piece_type)
         motion = MoveMotion(
             from_row=from_row, from_col=from_col,
             to_row=to_row,     to_col=to_col,
@@ -118,8 +119,10 @@ class GameEngine:
 
     @staticmethod
     def _compute_path(from_row: int, from_col: int,
-                      to_row: int, to_col: int) -> list:
+                      to_row: int, to_col: int, piece_type: str) -> list:
         """Return list of (row, col) from source to destination inclusive."""
+        if piece_type == 'N':
+            return [(from_row, from_col), (to_row, to_col)]
         dr = 0 if from_row == to_row else (1 if to_row > from_row else -1)
         dc = 0 if from_col == to_col else (1 if to_col > from_col else -1)
         path = []

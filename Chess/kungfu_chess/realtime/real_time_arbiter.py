@@ -50,7 +50,9 @@ class RealTimeArbiter:
                                moving_color: str,
                                start_time: int,
                                arrival_time: int) -> bool:
-        for jump in self._state.get_airborne_at_square(row, col):
+        for jump in self._active_jumps:
+            if jump.row != row or jump.col != col:
+                continue
             if jump.color == moving_color:
                 continue
             if TIME_CONFIG['check_airborne_capture_instant']:
@@ -92,17 +94,13 @@ class RealTimeArbiter:
                     piece_type = piece_code[1]
                     cooldown = COOLDOWN_CONFIG.get(piece_type, {}).get('jump', 0)
                     if cooldown:
-                        self._state.set_cooldown(event.row, event.col, t + cooldown)
+                        self._state.set_cooldown(event.row, event.col, t + cooldown, "short_rest")
 
     # ------------------------------------------------------------------
     # En-route collision resolution
     # ------------------------------------------------------------------
 
     def _resolve_en_route_collisions(self) -> None:
-        """
-        Detect pairs of active moves that share a path square and stop
-        both at their last legal position before the collision square.
-        """
         moves = list(self._active_moves)
         cancelled = set()
 
@@ -115,13 +113,19 @@ class RealTimeArbiter:
                 if not self._collision.is_en_route_collision(a, b):
                     continue
 
-                # Find the shared square(s) — use the first one in a's path
+                # Find the shared square where they meet at the same time
                 shared = set(a.path[:-1]) & set(b.path[:-1])
-                if not shared:
+                collision_square = None
+                for sq in a.path[:-1]:
+                    if sq in shared:
+                        ta = CollisionRules._time_at_square(a, sq)
+                        tb = CollisionRules._time_at_square(b, sq)
+                        if ta == tb:
+                            collision_square = sq
+                            break
+
+                if collision_square is None:
                     continue
-                # Pick the earliest shared square along a's path
-                collision_square = next(
-                    sq for sq in a.path[:-1] if sq in shared)
 
                 self._stop_at_last_legal(a, collision_square)
                 self._stop_at_last_legal(b, collision_square)
@@ -199,7 +203,7 @@ class RealTimeArbiter:
         piece_type = piece_code[1]
         cooldown = COOLDOWN_CONFIG.get(piece_type, {}).get('move', 0)
         if cooldown:
-            self._state.set_cooldown(to_row, to_col, motion.arrival_time + cooldown)
+            self._state.set_cooldown(to_row, to_col, motion.arrival_time + cooldown, "long_rest")
 
         if len(target) > 1 and target[1] == 'K':
             self._state.end_game()
