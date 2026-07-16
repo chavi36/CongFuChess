@@ -27,11 +27,11 @@ from kungfu_chess.model.config import TIME_CONFIG, EMPTY_SQUARE
 
 class GameEngine:
 
-    def __init__(self, board: BoardInterface):
+    def __init__(self, board: BoardInterface, players=None):
         self.board       = board
         self.state       = GameState(board)
         self.rule_engine = RuleEngine(board)
-        self.arbiter     = RealTimeArbiter(board, self.state)
+        self.arbiter     = RealTimeArbiter(board, self.state, players=players)
         self.arbiter.set_rule_engine(self.rule_engine)
         self._validate_board()
 

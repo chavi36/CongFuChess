@@ -16,14 +16,15 @@ from kungfu_chess.model.board import BoardInterface
 from kungfu_chess.model.game_state import GameState
 from kungfu_chess.realtime.motion import MoveMotion, AirborneEvent
 from kungfu_chess.rules.collision_rules import CollisionRules
-from kungfu_chess.model.config import EMPTY_SQUARE, TIME_CONFIG, get_pawn_config, PieceType, COOLDOWN_CONFIG
+from kungfu_chess.model.config import EMPTY_SQUARE, TIME_CONFIG, get_pawn_config, PieceType, COOLDOWN_CONFIG, PIECES_VALUES
 
 
 class RealTimeArbiter:
 
-    def __init__(self, board: BoardInterface, state: GameState, rule_engine=None):
-        self._board  = board
-        self._state  = state
+    def __init__(self, board: BoardInterface, state: GameState, rule_engine=None, players=None):
+        self._board   = board
+        self._state   = state
+        self._players = {p.color.value: p for p in players} if players else {}
         self._active_moves: List[MoveMotion]    = []
         self._active_jumps: List[AirborneEvent] = []
         self._collision = CollisionRules(board, rule_engine)
@@ -198,6 +199,10 @@ class RealTimeArbiter:
 
         self._board.set_piece(from_row, from_col, EMPTY_SQUARE)
         self._board.set_piece(to_row, to_col, piece_code)
+
+        # award points to the capturing player based on captured piece value
+        if target != EMPTY_SQUARE and piece_color in self._players:
+            self._players[piece_color].add_score(PIECES_VALUES.get(target[1], 0))
 
         # cooldown after arrival
         piece_type = piece_code[1]

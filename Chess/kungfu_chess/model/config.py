@@ -38,19 +38,19 @@ def get_pawn_config(board_height: int) -> dict:
 PAWN_CONFIG = get_pawn_config(8)  # default for backward compatibility
 
 TIME_CONFIG = {
-    'jump_duration': 1000,
-    'move_time_per_square': 1000,
+    'jump_duration': 1500,           # airborne for 1.5 s
+    'move_time_per_square': 300,     # 300 ms per square travelled
     'check_airborne_capture_instant': True,
     'check_airborne_capture_arrival': True,
 }
 
 COOLDOWN_CONFIG = {
-    'K': {'move': 500,  'jump': 200},
-    'Q': {'move': 1000, 'jump': 400},
-    'R': {'move': 800,  'jump': 300},
-    'B': {'move': 800,  'jump': 300},
-    'N': {'move': 600,  'jump': 250},
-    'P': {'move': 700,  'jump': 250},
+    'K': {'move': 1500, 'jump': 3000},  # king: quick move, long jump cooldown
+    'Q': {'move': 2000, 'jump': 4000},  # queen: slightly slower, costly jump
+    'R': {'move': 1500, 'jump': 3000},
+    'B': {'move': 1500, 'jump': 3000},
+    'N': {'move': 1000, 'jump': 2000},  # knight: nimble
+    'P': {'move': 800,  'jump': 2000},  # pawn: fastest move, moderate jump
 }
 
 ERROR_MESSAGES = {
@@ -59,6 +59,14 @@ ERROR_MESSAGES = {
     'INVALID_MOVE':       'ERROR INVALID_MOVE',
     'NO_PIECE_SELECTED':  'ERROR NO_PIECE_SELECTED',
     'INVALID_POSITION':   'ERROR INVALID_POSITION',
+}
+
+PIECES_VALUES = {
+    "P": 1,
+    "N": 3,
+    "B": 3,
+    "R": 5,
+    "Q": 9
 }
 
 EMPTY_SQUARE = '.'
