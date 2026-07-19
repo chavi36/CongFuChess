@@ -22,15 +22,24 @@ from kungfu_chess.model.config import EMPTY_SQUARE, TIME_CONFIG, get_pawn_config
 class RealTimeArbiter:
 
     def __init__(self, board: BoardInterface, state: GameState, rule_engine=None, players=None):
-        self._board   = board
-        self._state   = state
-        self._players = {p.color.value: p for p in players} if players else {}
+        self._board     = board
+        self._state     = state
+        self._players   = {p.color.value: p for p in players} if players else {}
+        self._observers = {}
+        self._renderer  = None
         self._active_moves: List[MoveMotion]    = []
         self._active_jumps: List[AirborneEvent] = []
         self._collision = CollisionRules(board, rule_engine)
 
     def set_rule_engine(self, rule_engine) -> None:
         self._collision = CollisionRules(self._board, rule_engine)
+
+    def set_observers(self, observers: dict) -> None:
+        """observers: {'w': MoveObserver, 'b': MoveObserver}"""
+        self._observers = observers
+
+    def set_renderer(self, renderer) -> None:
+        self._renderer = renderer
 
     # ------------------------------------------------------------------
     # Scheduling
@@ -200,9 +209,16 @@ class RealTimeArbiter:
         self._board.set_piece(from_row, from_col, EMPTY_SQUARE)
         self._board.set_piece(to_row, to_col, piece_code)
 
+        # notify observer on arrival
+        if piece_color in self._observers:
+            self._observers[piece_color].on_move(self._state.clock, piece_code,
+                                                 from_row, from_col, to_row, to_col)
+
         # award points to the capturing player based on captured piece value
         if target != EMPTY_SQUARE and piece_color in self._players:
             self._players[piece_color].add_score(PIECES_VALUES.get(target[1], 0))
+            if self._renderer:
+                self._renderer.notify_capture(to_row, to_col)
 
         # cooldown after arrival
         piece_type = piece_code[1]

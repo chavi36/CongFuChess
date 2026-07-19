@@ -5,12 +5,13 @@ A real-time chess engine. Both players move simultaneously — pieces travel acr
 ## Project structure
 
 ```
-TheGame/
+Chess/
 ├── kungfu_chess/
 │   ├── model/
-│   │   ├── config.py        # All constants (timing, pawn rules, cell size, error messages)
+│   │   ├── config.py        # All constants (timing, cooldowns, piece values, cell size, error messages)
 │   │   ├── position.py      # Position dataclass (row, col)
 │   │   ├── piece.py         # Piece dataclass (color, piece_type)
+│   │   ├── player.py        # Player dataclass (name, color, score)
 │   │   ├── board.py         # BoardInterface (ABC) + TextBoard implementation
 │   │   └── game_state.py    # Clock, blocked sources, airborne history, selection, game-over
 │   │
@@ -21,7 +22,8 @@ TheGame/
 │   ├── realtime/
 │   │   ├── motion.py        # MoveMotion and AirborneEvent dataclasses
 │   │   └── real_time_arbiter.py  # Owns active motions, advances simulated time,
-│   │                             # resolves arrivals atomically, detects king capture
+│   │                             # resolves arrivals atomically, detects king capture,
+│   │                             # awards score on capture
 │   │
 │   ├── engine/
 │   │   └── game_engine.py   # Coordinator: validates preconditions, delegates to
@@ -39,11 +41,24 @@ TheGame/
 │   │   ├── renderer.py      # Renderer ABC (render / highlight / clear_highlights)
 │   │   └── image_view.py    # Graphical stub — implement for pygame/tkinter etc.
 │   │
+│   ├── gui/
+│   │   ├── gui_app.py           # GUI entry point (OpenCV window, game loop, player HUD)
+│   │   ├── gui_controller.py    # Mouse input → engine commands
+│   │   ├── board_renderer.py    # Static board + piece rendering
+│   │   ├── animated_renderer.py # Per-piece state animations (move/jump/rest/idle)
+│   │   └── animation_clock.py   # Preloads sprite frames, returns correct frame by clock
+│   │
+│   ├── anotations/
+│   │   ├── pieces1/         # board.csv (initial board layout)
+│   │   ├── pieces2/         # Sprite set 2
+│   │   ├── pieces3/         # Sprite set 3 (filenames: 1.png, 2.png, ...)
+│   │   └── pieces4/         # Sprite set 4 (filenames: tile_R_N.png)
+│   │
 │   ├── texttests/
 │   │   ├── script_parser.py # Maps raw command strings to Command objects
 │   │   └── script_runner.py # Thin adapter: parses board + runs commands via engine
 │   │
-│   └── app.py               # Entry point — calls script_runner.run_from_stdin()
+│   └── app.py               # Text-mode entry point — calls script_runner.run_from_stdin()
 │
 └── tests/
     ├── unit/                # One file per module (68 tests)
@@ -72,14 +87,35 @@ TheGame/
 
 | Layer | File(s) | Does | Does NOT |
 |---|---|---|---|
-| **Model** | `board.py`, `game_state.py` | Store state | Validate moves or resolve timing |
+| **Model** | `board.py`, `game_state.py`, `player.py` | Store state and player info | Validate moves or resolve timing |
 | **Rules** | `piece_rules.py`, `rule_engine.py` | Check move geometry | Touch the board |
-| **Realtime** | `real_time_arbiter.py` | Track active motions, apply arrivals, detect game-over | Know chess rules |
+| **Realtime** | `real_time_arbiter.py` | Track active motions, apply arrivals, detect game-over, award capture score | Know chess rules |
 | **Engine** | `game_engine.py` | Coordinate the layers | Contain move rules or mutate the board |
 | **Input** | `controller.py` | Route UI commands to engine | Contain chess logic |
 | **IO** | `board_parser.py`, `board_printer.py` | Parse / print text | Affect game state |
+| **GUI** | `gui_app.py`, `gui_controller.py`, `animated_renderer.py` | Render board, animate pieces, display player HUD | Contain chess logic |
 
-## Run the game
+## Run the GUI
+
+Install dependencies:
+
+```bash
+pip install opencv-python
+```
+
+Run from the `Chess/` directory:
+
+```bash
+python -m kungfu_chess.gui.gui_app
+```
+
+To switch sprite sets, change `PIECES_SET` at the top of `gui_app.py`:
+
+```python
+PIECES_SET = "pieces3"  # pieces1 / pieces2 / pieces3 / pieces4
+```
+
+## Run the text engine
 
 Create an input file:
 
@@ -95,19 +131,19 @@ wait 8000
 print board
 ```
 
-Then run from the `TheGame/` directory:
+Then run from the `Chess/` directory:
 
 ```bash
 python -m kungfu_chess.app < input.txt
 ```
 
-## Supported commands
+## Supported commands (text mode)
 
 | Command | Effect |
 |---|---|
 | `print board` | Print the current board state to stdout |
 | `click X Y` | Select a piece, move the selected piece, or deselect (click outside board) |
-| `jump X Y` | Make the piece at (X, Y) jump — airborne for 1000 ms, immune to capture |
+| `jump X Y` | Make the piece at (X, Y) jump — airborne for 1500 ms, immune to capture |
 | `wait N` | Advance the simulated clock by N milliseconds |
 
 Coordinates are **pixel-based**: each cell is 100×100 px.
@@ -117,14 +153,40 @@ Cell size is defined in `model/config.py` and read via `input/board_mapper.get_c
 ## Real-time rules
 
 - A piece that starts moving is **blocked** at its source until it arrives.
-- A **jump** makes a piece airborne for 1000 ms. While airborne it is immune to normal capture.
+- A **jump** makes a piece airborne for 1500 ms. While airborne it is immune to normal capture.
 - If an enemy piece moves into a square occupied by an **airborne** piece, the moving piece is destroyed.
 - The board is **frozen** after game-over — no further arrivals are applied.
 - Clicking outside the board clears the current selection.
 
+## Scoring
+
+Capturing a piece awards points to the capturing player based on standard piece values:
+
+| Piece | Points |
+|---|---|
+| Pawn | 1 |
+| Knight | 3 |
+| Bishop | 3 |
+| Rook | 5 |
+| Queen | 9 |
+
+Scores are displayed live in the GUI above (white) and below (black) the board.
+Piece values are configured in `PIECES_VALUES` in `model/config.py`.
+
+## Timing configuration
+
+All timing is in milliseconds and configured in `model/config.py`:
+
+| Setting | Value | Description |
+|---|---|---|
+| `jump_duration` | 1500 | How long a piece stays airborne |
+| `move_time_per_square` | 300 | Travel time per square |
+| Move cooldowns | 800–2000 | Per piece type, after arriving |
+| Jump cooldowns | 2000–4000 | Per piece type, after landing |
+
 ## Run tests
 
-From the `TheGame/` directory:
+From the `Chess/` directory:
 
 ```bash
 # Unit tests (68)

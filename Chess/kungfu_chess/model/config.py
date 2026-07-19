@@ -38,19 +38,19 @@ def get_pawn_config(board_height: int) -> dict:
 PAWN_CONFIG = get_pawn_config(8)  # default for backward compatibility
 
 TIME_CONFIG = {
-    'jump_duration': 1500,           # airborne for 1.5 s
+    'jump_duration': 3000,           # airborne for 3 s
     'move_time_per_square': 300,     # 300 ms per square travelled
     'check_airborne_capture_instant': True,
     'check_airborne_capture_arrival': True,
 }
 
 COOLDOWN_CONFIG = {
-    'K': {'move': 1500, 'jump': 3000},  # king: quick move, long jump cooldown
-    'Q': {'move': 2000, 'jump': 4000},  # queen: slightly slower, costly jump
-    'R': {'move': 1500, 'jump': 3000},
-    'B': {'move': 1500, 'jump': 3000},
-    'N': {'move': 1000, 'jump': 2000},  # knight: nimble
-    'P': {'move': 800,  'jump': 2000},  # pawn: fastest move, moderate jump
+    'K': {'move': 3000, 'jump': 6000},
+    'Q': {'move': 4000, 'jump': 8000},
+    'R': {'move': 3000, 'jump': 6000},
+    'B': {'move': 3000, 'jump': 6000},
+    'N': {'move': 2000, 'jump': 4000},
+    'P': {'move': 1500, 'jump': 4000},
 }
 
 ERROR_MESSAGES = {

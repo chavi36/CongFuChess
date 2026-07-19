@@ -36,7 +36,7 @@ class AnimationClock:
         sprites_path = os.path.join(status_path, "sprites")
         frame_files  = sorted(
             (f for f in os.listdir(sprites_path) if f.endswith(".png")),
-            key=lambda n: int(os.path.splitext(n)[0])
+            key=lambda n: int(os.path.splitext(n)[0].split('_')[-1])
         )
         frames = [
             Img().read(os.path.join(sprites_path, f),
