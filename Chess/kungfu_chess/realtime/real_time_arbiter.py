@@ -199,8 +199,10 @@ class RealTimeArbiter:
         if target != EMPTY_SQUARE and target[0] == piece_color:
             return
 
-        # Pawn promotion
-        if piece_type == 'P':
+        king_capture = (target != EMPTY_SQUARE and target[1] == 'K')
+
+        # Pawn promotion is disabled when the pawn captures the king and ends the game.
+        if piece_type == 'P' and not king_capture:
             config = get_pawn_config(self._board.get_height())[
                 'white' if piece_color == 'w' else 'black']
             if to_row == config['promotion_row']:

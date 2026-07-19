@@ -12,6 +12,13 @@ from kungfu_chess.engine.game_engine import GameEngine
 
 CAPTURE_FLASH_DURATION = 2.0  # seconds
 
+SELECTION_HIGHLIGHT_COLOR_BGR = (0, 180, 0)
+CAPTURE_FLASH_COLOR_BGR = (0, 220, 220)
+COOLDOWN_BAR_COLOR_BGR = (0, 0, 200)
+GAME_OVER_OVERLAY_COLOR_BGR = (80, 80, 80)
+GAME_OVER_TEXT_COLOR_BGR = (0, 0, 220)
+GAME_OVER_MENU_TEXT_COLOR_BGR = (200, 200, 200)
+
 
 def _cell_status(engine: GameEngine) -> dict:
     status = {}
@@ -72,7 +79,7 @@ class AnimatedRenderer(BoardRenderer):
             r, c = selected
             px = self.offset_x + c * self.cell_size
             py = self.offset_y + r * self.cell_size
-            _blend(canvas, px, py, self.cell_size, self.cell_size, (0, 180, 0), 0.35)
+            _blend(canvas, px, py, self.cell_size, self.cell_size, SELECTION_HIGHLIGHT_COLOR_BGR, 0.35)
 
         # ── capture flash (yellow) ───────────────────────────────────
         expired = [k for k, t in self._capture_flashes.items()
@@ -84,7 +91,7 @@ class AnimatedRenderer(BoardRenderer):
             py = self.offset_y + r * self.cell_size
             age   = now - self._capture_flashes[(r, c)]
             alpha = 0.4 * (1.0 - age / CAPTURE_FLASH_DURATION)
-            _blend(canvas, px, py, self.cell_size, self.cell_size, (0, 220, 220), alpha)
+            _blend(canvas, px, py, self.cell_size, self.cell_size, CAPTURE_FLASH_COLOR_BGR, alpha)
 
         # ── moving pieces (interpolated) ─────────────────────────────
         moving_cells = set()
@@ -150,23 +157,23 @@ class AnimatedRenderer(BoardRenderer):
                         bar_h    = int(self.cell_size * progress)
                         # anchor at bottom, shrink upward as cooldown expires
                         bar_y = py + self.cell_size - bar_h
-                        _blend(canvas, px, bar_y, self.cell_size, bar_h, (0, 0, 200), 0.45)
+                        _blend(canvas, px, bar_y, self.cell_size, bar_h, COOLDOWN_BAR_COLOR_BGR, 0.45)
 
         # ── game-over overlay ────────────────────────────────────────
         if engine.state.is_game_over():
             _blend(canvas, self.offset_x, self.offset_y,
-                   self.board_size, self.board_size, (80, 80, 80), 0.6)
+                   self.board_size, self.board_size, GAME_OVER_OVERLAY_COLOR_BGR, 0.6)
             cx = self.offset_x + self.board_size // 2
             cy = self.offset_y + self.board_size // 2
             cv2.putText(canvas, "GAME OVER",
                         (cx - 130, cy - 40),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.4, (0, 0, 220), 3)
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.4, GAME_OVER_TEXT_COLOR_BGR, 3)
             if winner:
                 cv2.putText(canvas, f"{winner} wins!",
                             (cx - 100, cy + 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 220), 2)
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, GAME_OVER_TEXT_COLOR_BGR, 2)
             cv2.putText(canvas, "ESC to quit   any key to restart",
-                        (cx - 190, cy + 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+                        (cx - 170, cy + 60),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, GAME_OVER_MENU_TEXT_COLOR_BGR, 1)
 
         return canvas

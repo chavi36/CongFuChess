@@ -129,6 +129,20 @@ class TestArrivalResolution(unittest.TestCase):
         arbiter.advance_to(1000)
         self.assertEqual(board.get_piece(0, 0), 'wQ')
 
+    def test_pawn_capture_king_does_not_promote(self):
+        board = TextBoard(_empty())
+        board.set_piece(1, 0, 'wP')
+        board.set_piece(0, 0, 'bK')
+        state = GameState(board)
+        arbiter = RealTimeArbiter(board, state)
+        motion = MoveMotion(1, 0, 0, 0, start_time=0,
+                            arrival_time=1000, piece_code='wP')
+        arbiter.register_move(motion)
+        state.block_source(1, 0)
+        arbiter.advance_to(1000)
+        self.assertTrue(state.is_game_over())
+        self.assertEqual(board.get_piece(0, 0), 'wP')
+
 
 if __name__ == '__main__':
     unittest.main()
