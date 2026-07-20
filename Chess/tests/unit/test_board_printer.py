@@ -2,8 +2,8 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from kungfu_chess.model.board import TextBoard
-from kungfu_chess.io.board_printer import print_board
+from application.kungfu_chess.model.board import TextBoard
+from application.kungfu_chess.io.board_printer import print_board
 
 
 class TestBoardPrinter(unittest.TestCase):

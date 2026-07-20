@@ -1,6 +1,6 @@
 import unittest
-from kungfu_chess.model.board import TextBoard
-from kungfu_chess.engine.game_engine import GameEngine
+from application.kungfu_chess.model.board import TextBoard
+from application.kungfu_chess.engine.game_engine import GameEngine
 
 
 def _empty(rows=8, cols=8):

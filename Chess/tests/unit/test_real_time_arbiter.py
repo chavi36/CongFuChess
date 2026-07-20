@@ -1,8 +1,8 @@
 import unittest
-from kungfu_chess.model.board import TextBoard
-from kungfu_chess.model.game_state import GameState
-from kungfu_chess.realtime.motion import AirborneEvent, MoveMotion
-from kungfu_chess.realtime.real_time_arbiter import RealTimeArbiter
+from application.kungfu_chess.model.board import TextBoard
+from application.kungfu_chess.model.game_state import GameState
+from application.kungfu_chess.realtime.motion import AirborneEvent, MoveMotion
+from application.kungfu_chess.realtime.real_time_arbiter import RealTimeArbiter
 
 
 def _empty(rows=4, cols=4):

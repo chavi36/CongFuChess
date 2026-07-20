@@ -1,5 +1,5 @@
 import unittest
-from kungfu_chess.input.board_mapper import pixel_to_grid
+from application.kungfu_chess.input.board_mapper import pixel_to_grid
 
 
 class TestBoardMapper(unittest.TestCase):

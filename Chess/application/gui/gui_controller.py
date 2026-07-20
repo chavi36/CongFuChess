@@ -1,12 +1,12 @@
 import cv2
-from kungfu_chess.input.controller import Command, CommandExecutor
+from application.bridge.game_session import GameSession
 
 
 class GUIController:
-    def __init__(self, renderer, executor: CommandExecutor):
-        self.renderer  = renderer
-        self.executor  = executor
-        self.selected  = None  # (row, col) of currently selected cell
+    def __init__(self, renderer, session: GameSession):
+        self.renderer = renderer
+        self.session  = session
+        self.selected = None  # (row, col) of currently selected cell
 
     def get_mouse_callback(self):
         def on_mouse(event, x, y, flags, param):
@@ -16,11 +16,10 @@ class GUIController:
             if not self.renderer.in_bounds(row, col):
                 return
             if self.selected == (row, col):
-                self.executor.execute(Command(cmd_type='jump', row=row, col=col))
+                self.session.jump(row, col)
                 self.selected = None
             else:
-                self.executor.execute(Command(cmd_type='click', row=row, col=col))
-                # track selection independently — don't rely on engine state
+                self.session.click(row, col)
                 if self.selected is None:
                     self.selected = (row, col)
                 else:

@@ -5,10 +5,10 @@ board state matches the expected output.
 """
 
 import unittest
-from kungfu_chess.model.board import TextBoard
-from kungfu_chess.engine.game_engine import GameEngine
-from kungfu_chess.input.controller import CommandExecutor
-from kungfu_chess.texttests.script_parser import ScriptParser
+from application.kungfu_chess.model.board import TextBoard
+from application.kungfu_chess.engine.game_engine import GameEngine
+from application.kungfu_chess.input.controller import CommandExecutor
+from application.kungfu_chess.texttests.script_parser import ScriptParser
 
 
 def run_script(board_data, commands):

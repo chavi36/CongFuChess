@@ -2,7 +2,7 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from kungfu_chess.io.board_parser import validate_board, load_from_input
+from application.kungfu_chess.io.board_parser import validate_board, load_from_input
 
 
 class TestValidateBoard(unittest.TestCase):

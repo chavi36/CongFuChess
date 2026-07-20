@@ -6,9 +6,9 @@ and visual overlays (selection, cooldown, capture flash, game-over screen).
 import time
 import numpy as np
 import cv2
-from kungfu_chess.gui.board_renderer import BoardRenderer
-from kungfu_chess.gui.animation_clock import AnimationClock
-from kungfu_chess.engine.game_engine import GameEngine
+from application.gui.board_renderer import BoardRenderer
+from application.gui.animation_clock import AnimationClock
+from application.bridge.game_session import RenderSnapshot
 
 CAPTURE_FLASH_DURATION = 2.0  # seconds
 
@@ -20,26 +20,14 @@ GAME_OVER_TEXT_COLOR_BGR = (0, 0, 220)
 GAME_OVER_MENU_TEXT_COLOR_BGR = (200, 200, 200)
 
 
-def _cell_status(engine: GameEngine) -> dict:
+def _cell_status(snapshot: RenderSnapshot) -> dict:
     status = {}
-    clock  = engine.state.clock
-    for motion in engine.arbiter._active_moves:
+    for motion in snapshot.active_moves:
         status[(motion.from_row, motion.from_col)] = ("move", motion.start_time)
-    for jump in engine.arbiter._active_jumps:
-        status[(jump.row, jump.col)] = ("jump", jump.start_time)
-    for (row, col), (end_time, kind) in engine.state._cooldowns.items():
-        if clock < end_time:
-            start_time = end_time - _cooldown_duration(engine, row, col, kind)
-            status[(row, col)] = (kind, start_time)
+    for cd in snapshot.cooldowns:
+        start_time = cd.end_time - cd.duration
+        status[(cd.row, cd.col)] = (cd.kind, start_time)
     return status
-
-
-def _cooldown_duration(engine: GameEngine, row: int, col: int, kind: str) -> int:
-    from kungfu_chess.model.config import COOLDOWN_CONFIG
-    piece = engine.board.get_piece(row, col)
-    if len(piece) < 2:
-        return 0
-    return COOLDOWN_CONFIG.get(piece[1], {}).get("move" if kind == "long_rest" else "jump", 0)
 
 
 def _blend(canvas: np.ndarray, x: int, y: int, w: int, h: int,
@@ -55,20 +43,40 @@ def _blend(canvas: np.ndarray, x: int, y: int, w: int, h: int,
 
 
 class AnimatedRenderer(BoardRenderer):
-    def __init__(self, board_path, pieces_dir, window_w, window_h, board_size):
+    def __init__(self, board_path, pieces_dir, window_w, window_h, board_size, event_bus=None):
         super().__init__(board_path, pieces_dir, window_w, window_h, board_size)
         self._anim = AnimationClock(pieces_dir, self.cell_size)
         # (row, col) -> wall time when capture happened
         self._capture_flashes: dict = {}
+        self._event_bus = event_bus
+        self._animation_flash_until = 0.0
+        if self._event_bus is not None:
+            self._event_bus.subscribe("capture", self._handle_capture)
+            self._event_bus.subscribe("game.ended", self._handle_game_event)
+            self._event_bus.subscribe("game.started", self._handle_game_event)
+
+    def set_event_bus(self, event_bus) -> None:
+        self._event_bus = event_bus
+        if self._event_bus is not None:
+            self._event_bus.subscribe("capture", self._handle_capture)
+            self._event_bus.subscribe("game.ended", self._handle_game_event)
+            self._event_bus.subscribe("game.started", self._handle_game_event)
+
+    def _handle_capture(self, payload) -> None:
+        if payload is None:
+            return
+        self.notify_capture(payload.get("row", 0), payload.get("col", 0))
+
+    def _handle_game_event(self, payload) -> None:
+        self._animation_flash_until = time.monotonic() + 0.4
 
     def notify_capture(self, row: int, col: int) -> None:
         """Call this when a piece is captured at (row, col)."""
         self._capture_flashes[(row, col)] = time.monotonic()
 
-    def render(self, engine: GameEngine, selected=None, winner: str = None) -> np.ndarray:
-        board    = engine.board
-        clock    = engine.state.clock
-        statuses = _cell_status(engine)
+    def render(self, snapshot: RenderSnapshot, selected=None) -> np.ndarray:
+        clock    = snapshot.clock
+        statuses = _cell_status(snapshot)
         now      = time.monotonic()
 
         canvas = np.zeros((self.window_h, self.window_w, 3), dtype=np.uint8)
@@ -95,7 +103,7 @@ class AnimatedRenderer(BoardRenderer):
 
         # ── moving pieces (interpolated) ─────────────────────────────
         moving_cells = set()
-        for motion in engine.arbiter._active_moves:
+        for motion in snapshot.active_moves:
             moving_cells.add((motion.from_row, motion.from_col))
             elapsed  = clock - motion.start_time
             duration = motion.arrival_time - motion.start_time
@@ -118,49 +126,46 @@ class AnimatedRenderer(BoardRenderer):
                 pass
 
         # ── stationary pieces ────────────────────────────────────────
-        for r in range(board.get_height()):
-            for c in range(board.get_width()):
-                if (r, c) in moving_cells:
+        cd_map = {(cd.row, cd.col): cd for cd in snapshot.cooldowns}
+        for r, c, piece in snapshot.board:
+            if (r, c) in moving_cells or piece == '.':
+                continue
+            px = self.offset_x + c * self.cell_size
+            py = self.offset_y + r * self.cell_size
+            try:
+                sprite_code   = self._resolve_code(piece)
+                status, start = statuses.get((r, c), ("idle", 0))
+                elapsed       = clock - start
+                if status in ("long_rest", "short_rest"):
+                    cd = cd_map.get((r, c))
+                    if cd and cd.duration > 0:
+                        entry = self._anim._data.get((sprite_code, status)) \
+                             or self._anim._data.get((sprite_code, "idle"))
+                        if entry:
+                            total_ms = entry["ms_per_frame"] * len(entry["frames"])
+                            elapsed  = int(elapsed * total_ms / cd.duration)
+                frame = self._anim.get_frame(sprite_code, status, elapsed)
+                if frame is None:
                     continue
-                piece = board.get_piece(r, c)
-                if piece == '.':
-                    continue
-                px = self.offset_x + c * self.cell_size
-                py = self.offset_y + r * self.cell_size
-                try:
-                    sprite_code   = self._resolve_code(piece)
-                    status, start = statuses.get((r, c), ("idle", 0))
-                    elapsed       = clock - start
-                    # for cooldown statuses, stretch elapsed so the animation
-                    # plays exactly once over the full cooldown duration
-                    if status in ("long_rest", "short_rest"):
-                        duration = _cooldown_duration(engine, r, c, status)
-                        if duration > 0:
-                            entry = self._anim._data.get((sprite_code, status)) \
-                                 or self._anim._data.get((sprite_code, "idle"))
-                            if entry:
-                                total_ms = entry["ms_per_frame"] * len(entry["frames"])
-                                elapsed  = int(elapsed * total_ms / duration)
-                    frame         = self._anim.get_frame(sprite_code, status, elapsed)
-                    if frame is None:
-                        continue
-                    frame.draw_on_np(canvas, px, py)
-                except FileNotFoundError:
-                    pass
+                frame.draw_on_np(canvas, px, py)
+            except FileNotFoundError:
+                pass
 
-                # ── cooldown overlay (red bar shrinking downward from top) ────
-                if (r, c) in engine.state._cooldowns:
-                    end_time, kind = engine.state._cooldowns[(r, c)]
-                    if clock < end_time:
-                        duration = _cooldown_duration(engine, r, c, kind)
-                        progress = (end_time - clock) / duration if duration > 0 else 0
-                        bar_h    = int(self.cell_size * progress)
-                        # anchor at bottom, shrink upward as cooldown expires
-                        bar_y = py + self.cell_size - bar_h
-                        _blend(canvas, px, bar_y, self.cell_size, bar_h, COOLDOWN_BAR_COLOR_BGR, 0.45)
+            # ── cooldown bar ─────────────────────────────────────────
+            cd = cd_map.get((r, c))
+            if cd and clock < cd.end_time and cd.duration > 0:
+                progress = (cd.end_time - clock) / cd.duration
+                bar_h    = int(self.cell_size * progress)
+                bar_y    = py + self.cell_size - bar_h
+                _blend(canvas, px, bar_y, self.cell_size, bar_h, COOLDOWN_BAR_COLOR_BGR, 0.45)
+
+        if now < self._animation_flash_until:
+            alpha = 0.15 * (1.0 - (self._animation_flash_until - now) / 0.4)
+            _blend(canvas, self.offset_x, self.offset_y,
+                   self.board_size, self.board_size, (255, 255, 255), alpha)
 
         # ── game-over overlay ────────────────────────────────────────
-        if engine.state.is_game_over():
+        if snapshot.game_over:
             _blend(canvas, self.offset_x, self.offset_y,
                    self.board_size, self.board_size, GAME_OVER_OVERLAY_COLOR_BGR, 0.6)
             cx = self.offset_x + self.board_size // 2
@@ -168,12 +173,12 @@ class AnimatedRenderer(BoardRenderer):
             cv2.putText(canvas, "GAME OVER",
                         (cx - 130, cy - 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.4, GAME_OVER_TEXT_COLOR_BGR, 3)
-            if winner:
-                cv2.putText(canvas, f"{winner} wins!",
+            if snapshot.winner:
+                cv2.putText(canvas, f"{snapshot.winner} wins!",
                             (cx - 100, cy + 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.0, GAME_OVER_TEXT_COLOR_BGR, 2)
             cv2.putText(canvas, "ESC to quit   any key to restart",
-                        (cx - 170, cy + 60),
+                        (cx - 120, cy + 60),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, GAME_OVER_MENU_TEXT_COLOR_BGR, 1)
 
         return canvas

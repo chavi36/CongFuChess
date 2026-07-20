@@ -15,18 +15,20 @@ from typing import List, Optional
 from kungfu_chess.model.board import BoardInterface
 from kungfu_chess.model.game_state import GameState
 from kungfu_chess.realtime.motion import MoveMotion, AirborneEvent
+from kungfu_chess.realtime.event_bus import EventBus
 from kungfu_chess.rules.collision_rules import CollisionRules
 from kungfu_chess.model.config import EMPTY_SQUARE, TIME_CONFIG, get_pawn_config, PieceType, COOLDOWN_CONFIG, PIECES_VALUES
 
 
 class RealTimeArbiter:
 
-    def __init__(self, board: BoardInterface, state: GameState, rule_engine=None, players=None):
+    def __init__(self, board: BoardInterface, state: GameState, rule_engine=None, players=None, event_bus: EventBus | None = None):
         self._board     = board
         self._state     = state
         self._players   = {p.color.value: p for p in players} if players else {}
         self._observers = {}
         self._renderer  = None
+        self._event_bus = event_bus
         self._active_moves: List[MoveMotion]    = []
         self._active_jumps: List[AirborneEvent] = []
         self._collision = CollisionRules(board, rule_engine)
@@ -40,6 +42,13 @@ class RealTimeArbiter:
 
     def set_renderer(self, renderer) -> None:
         self._renderer = renderer
+
+    def set_event_bus(self, event_bus: EventBus | None) -> None:
+        self._event_bus = event_bus
+
+    def _publish(self, event_name: str, payload: object) -> None:
+        if self._event_bus is not None:
+            self._event_bus.publish(event_name, payload)
 
     # ------------------------------------------------------------------
     # Scheduling
@@ -216,11 +225,27 @@ class RealTimeArbiter:
             self._observers[piece_color].on_move(self._state.clock, piece_code,
                                                  from_row, from_col, to_row, to_col)
 
+        self._publish("move.arrived", {
+            "color": piece_color,
+            "piece": piece_code,
+            "from": (from_row, from_col),
+            "to": (to_row, to_col),
+            "clock": self._state.clock,
+        })
+
         # award points to the capturing player based on captured piece value
         if target != EMPTY_SQUARE and piece_color in self._players:
-            self._players[piece_color].add_score(PIECES_VALUES.get(target[1], 0))
+            gained_points = PIECES_VALUES.get(target[1], 0)
+            self._players[piece_color].add_score(gained_points)
+            self._publish("score.updated", {
+                "color": piece_color,
+                "points": gained_points,
+                "score": self._players[piece_color].score,
+                "captured_piece": target,
+            })
             if self._renderer:
                 self._renderer.notify_capture(to_row, to_col)
+                self._publish("capture", {"row": to_row, "col": to_col, "color": piece_color})
 
         # cooldown after arrival
         piece_type = piece_code[1]
@@ -230,6 +255,10 @@ class RealTimeArbiter:
 
         if len(target) > 1 and target[1] == 'K':
             self._state.end_game()
+            self._publish("game.ended", {
+                "winner": piece_color,
+                "clock": self._state.clock,
+            })
 
     def _find_destination_rival(self, motion: MoveMotion) -> Optional[MoveMotion]:
         """Return another active motion heading to the same destination, if any."""

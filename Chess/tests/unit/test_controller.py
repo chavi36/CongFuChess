@@ -2,9 +2,9 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from kungfu_chess.model.board import TextBoard
-from kungfu_chess.engine.game_engine import GameEngine
-from kungfu_chess.input.controller import Command, CommandExecutor
+from application.kungfu_chess.model.board import TextBoard
+from application.kungfu_chess.engine.game_engine import GameEngine
+from application.kungfu_chess.input.controller import Command, CommandExecutor
 
 
 def _std_engine():
@@ -37,7 +37,7 @@ class TestCommandExecutor(unittest.TestCase):
         self.assertEqual(self.engine.state.clock, 750)
 
     def test_print_outputs_board(self):
-        from kungfu_chess.io.board_printer import print_board
+        from application.kungfu_chess.io.board_printer import print_board
         with patch('sys.stdout', new=StringIO()) as out:
             executor = CommandExecutor(self.engine, on_print=lambda b: print(print_board(b), flush=True))
             executor.execute(Command('print'))

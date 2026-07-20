@@ -1,6 +1,5 @@
 import numpy as np
 from kungfu_chess.img import Img
-from kungfu_chess.model.board import BoardInterface
 
 import os
 
@@ -49,7 +48,7 @@ class BoardRenderer:
                      for r in range(board.get_height())
                      for c in range(board.get_width()))
 
-    def render(self, board: BoardInterface):
+    def render(self, board):
         snapshot = self._board_snapshot(board)
         if snapshot == self._last_snapshot:
             return self._cached_canvas
