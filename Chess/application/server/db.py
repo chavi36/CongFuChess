@@ -3,15 +3,15 @@ db.py — thin wrapper around kungfu_chess.db.db for the server.
 All storage logic lives in kungfu_chess/db/db.py.
 """
 
-from kungfu_chess.db.db import init_db, get_user, update_range
+from kungfu_chess.db.db import init_db, get_user, update_range, UserRecord
 
 
-def authenticate(name: str, password: str) -> dict | None:
-    """Return user dict if credentials match, else None."""
+def authenticate(name: str, password: str) -> UserRecord | None:
+    """Return UserRecord if credentials match, else None."""
     user = get_user(name)
-    if user is None or user["password"] != password:
+    if user is None or user.password != password:
         return None
-    return {"name": user["name"], "range": user["range"]}
+    return user
 
 
 def compute_elo(winner_range: int, loser_range: int, k: int = 32):
