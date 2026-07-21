@@ -1,20 +1,58 @@
 import numpy as np
 from kungfu_chess.img import Img
-
+from kungfu_chess.model.board import BoardInterface
 import os
 
+
 def _to_sprite_code(engine_code, pieces_dir=None):
-    """Resolve engine code to whichever folder name actually exists in pieces_dir."""
+    """Resolve engine code to the sprite folder that actually exists in pieces_dir."""
+    explicit_map = {
+        "wK": "KW",
+        "wQ": "QW",
+        "wR": "RW",
+        "wB": "BW",
+        "wN": "NW",
+        "wP": "PW",
+        "bK": "KB",
+        "bQ": "QB",
+        "bR": "RB",
+        "bB": "BB",
+        "bN": "NB",
+        "bP": "PB",
+        "KW": "KW",
+        "QW": "QW",
+        "RW": "RW",
+        "BW": "BW",
+        "NW": "NW",
+        "PW": "PW",
+        "KB": "KB",
+        "QB": "QB",
+        "RB": "RB",
+        "BB": "BB",
+        "NB": "NB",
+        "PB": "PB",
+    }
+    if engine_code in explicit_map:
+        return explicit_map[engine_code]
+
     color, piece = engine_code[0], engine_code[1]
+    base_piece = piece.upper()
     candidates = [
-        engine_code,                             # wK  (pieces3)
-        piece + ('W' if color == 'w' else 'B'),  # KW  (pieces2)
-        piece + color.upper(),                   # KB  (any other variant)
+        engine_code,
+        base_piece + ("W" if color == "w" else "B"),
+        base_piece + color.upper(),
+        base_piece,
     ]
+
     if pieces_dir:
         for name in candidates:
             if os.path.isdir(os.path.join(pieces_dir, name)):
                 return name
+
+        for name in candidates:
+            if os.path.isdir(os.path.join(pieces_dir, "pieces4", name)):
+                return os.path.join("pieces4", name)
+
     return candidates[0]
 
 
@@ -39,7 +77,11 @@ class BoardRenderer:
     def _piece_sprite(self, engine_code):
         sprite_code = self._resolve_code(engine_code)
         if sprite_code not in self._sprite_cache:
-            path = f"{self.pieces_dir}/{sprite_code}/states/idle/sprites/1.png"
+            path = os.path.join(self.pieces_dir, sprite_code, "states", "idle", "sprites", "1.png")
+            if not os.path.isfile(path):
+                fallback = os.path.join(self.pieces_dir, "pieces4", sprite_code, "states", "idle", "sprites", "1.png")
+                if os.path.isfile(fallback):
+                    path = fallback
             self._sprite_cache[sprite_code] = Img().read(path, size=(self.cell_size, self.cell_size))
         return self._sprite_cache[sprite_code]
 

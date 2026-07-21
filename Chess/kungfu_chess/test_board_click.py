@@ -1,11 +1,13 @@
+import os
 import cv2
 import numpy as np
 from img import Img
+from application.path_utils import resolve_project_path, resolve_pieces_dir, resolve_board_image
 
 # ── CONFIG ───────────────────────────────────────────────────────────────────
 WINDOW_W, WINDOW_H = 900, 900
 BOARD_SIZE = 700        # board will be resized to this (square)
-MARKER_PATH = "anotations/pieces1/QW/states/idle/sprites/1.png"
+MARKER_PATH = os.path.join(resolve_pieces_dir(__file__), "pieces1", "QW", "states", "idle", "sprites", "1.png")
 # ─────────────────────────────────────────────────────────────────────────────
 
 CELL_SIZE   = BOARD_SIZE // 8
@@ -24,7 +26,7 @@ def in_bounds(row, col):
 
 
 def main():
-    board = Img().read("board.png", size=(BOARD_SIZE, BOARD_SIZE))
+    board = Img().read(resolve_board_image(__file__), size=(BOARD_SIZE, BOARD_SIZE))
     marker = Img().read(MARKER_PATH, size=(CELL_SIZE, CELL_SIZE))
 
     canvas = np.zeros((WINDOW_H, WINDOW_W, 3), dtype=np.uint8)

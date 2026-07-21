@@ -6,17 +6,18 @@ from application.gui.gui_controller import GUIController
 from application.gui.move_log_panel import draw_move_log, draw_board_labels, PANEL_W
 from kungfu_chess.model.config import PieceColor
 from kungfu_chess.model.player import Player
+from application.path_utils import resolve_project_path, resolve_pieces_dir, resolve_board_image
 
 # ── CONFIG ───────────────────────────────────────────────────────────────────
 WINDOW_W   = 1300
 WINDOW_H   = 900
 BOARD_SIZE = 700
 TICK_MS    = 30
-BASE_DIR   = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # Chess/
-BOARD_IMG  = os.path.join(BASE_DIR, "kungfu_chess", "board.png")
+BASE_DIR   = resolve_project_path(__file__)
+BOARD_IMG  = resolve_board_image(__file__)
 PIECES_SET = "pieces4"
-PIECES_DIR = os.path.join(BASE_DIR, "kungfu_chess", "anotations", PIECES_SET)
-BOARD_CSV  = os.path.join(BASE_DIR, "kungfu_chess", "anotations", "pieces1", "board.csv")
+PIECES_DIR = os.path.join(resolve_pieces_dir(__file__), PIECES_SET)
+BOARD_CSV  = os.path.join(resolve_pieces_dir(__file__), "pieces1", "board.csv")
 WHITE_PLAYER = Player(name="shloimy", color=PieceColor.WHITE)
 BLACK_PLAYER = Player(name="chavi",   color=PieceColor.BLACK)
 # ─────────────────────────────────────────────────────────────────────────────

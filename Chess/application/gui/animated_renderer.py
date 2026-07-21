@@ -3,7 +3,9 @@ AnimatedRenderer — extends BoardRenderer with per-piece status animations
 and visual overlays (selection, cooldown, capture flash, game-over screen).
 """
 
+import os
 import time
+from types import SimpleNamespace
 import numpy as np
 import cv2
 from application.gui.board_renderer import BoardRenderer
@@ -18,6 +20,23 @@ COOLDOWN_BAR_COLOR_BGR = (0, 0, 200)
 GAME_OVER_OVERLAY_COLOR_BGR = (80, 80, 80)
 GAME_OVER_TEXT_COLOR_BGR = (0, 0, 220)
 GAME_OVER_MENU_TEXT_COLOR_BGR = (200, 200, 200)
+
+
+def _coerce_snapshot(snapshot) -> RenderSnapshot:
+    if hasattr(snapshot, "clock"):
+        return snapshot
+    if isinstance(snapshot, dict):
+        return SimpleNamespace(
+            clock=snapshot.get("clock", 0),
+            board=snapshot.get("board", []),
+            board_width=snapshot.get("board_width", 8),
+            board_height=snapshot.get("board_height", 8),
+            active_moves=[SimpleNamespace(**m) for m in snapshot.get("active_moves", [])],
+            cooldowns=[SimpleNamespace(**c) for c in snapshot.get("cooldowns", [])],
+            game_over=snapshot.get("game_over", False),
+            winner=snapshot.get("winner"),
+        )
+    return snapshot
 
 
 def _cell_status(snapshot: RenderSnapshot) -> dict:
@@ -75,6 +94,7 @@ class AnimatedRenderer(BoardRenderer):
         self._capture_flashes[(row, col)] = time.monotonic()
 
     def render(self, snapshot: RenderSnapshot, selected=None) -> np.ndarray:
+        snapshot = _coerce_snapshot(snapshot)
         clock    = snapshot.clock
         statuses = _cell_status(snapshot)
         now      = time.monotonic()
@@ -135,6 +155,12 @@ class AnimatedRenderer(BoardRenderer):
             try:
                 sprite_code   = self._resolve_code(piece)
                 status, start = statuses.get((r, c), ("idle", 0))
+                if sprite_code is None:
+                    continue
+                if not os.path.isdir(os.path.join(self.pieces_dir, sprite_code)):
+                    resolved = self._resolve_code(piece)
+                    if resolved and os.path.isdir(os.path.join(self.pieces_dir, resolved)):
+                        sprite_code = resolved
                 elapsed       = clock - start
                 if status in ("long_rest", "short_rest"):
                     cd = cd_map.get((r, c))

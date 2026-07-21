@@ -59,7 +59,7 @@ async def _handle_client(ws) -> None:
             white_user, white_ws = user_b, ws_b
             black_user, black_ws = user_a, ws_a
 
-        asyncio.ensure_future(run_game(white_user, white_ws, black_user, black_ws))
+        await run_game(white_user, white_ws, black_user, black_ws)
 
     except Exception as e:
         print(f"[server] error: {e}")
