@@ -11,8 +11,8 @@ then hands the pair off to game_server.run_game().
 import asyncio
 import websockets
 
-from application.server.db import authenticate
-from kungfu_chess.db.db import init_db
+from application.server.db.db import authenticate
+from application.server.db.db import init_db
 from application.server.matchmaker import Matchmaker
 from application.server.game_server import run_game
 from application.server.protocol import encode, decode, ErrorMsg, OkMsg, WaitingMsg

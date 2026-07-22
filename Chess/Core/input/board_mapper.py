@@ -9,7 +9,7 @@ to change — pixel_to_grid() and all callers stay the same.
 import math
 from typing import Tuple
 
-from kungfu_chess.model.config import CELL_SIZE_PX
+from Core.model.config import CELL_SIZE_PX
 
 
 def get_cell_size() -> int:

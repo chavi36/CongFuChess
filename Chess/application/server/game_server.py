@@ -109,10 +109,10 @@ import time
 from dataclasses import asdict
 
 from application.bridge.game_session import GameSession
-from kungfu_chess.model.config import PieceColor
-from kungfu_chess.model.player import Player
-from kungfu_chess.db.db import UserRecord
-from application.server.db import update_after_game
+from Core.model.config import PieceColor
+from Core.model.player import Player
+from application.server.db.db import UserRecord
+from application.server.db.db import update_after_game
 from application.server.protocol import encode, decode_client_msg, MatchedMsg, SnapshotMsg
 from application.path_utils import resolve_project_path, resolve_pieces_dir
 

@@ -13,7 +13,7 @@ All storage logic lives in kungfu_chess/db/db.py.
 #         return None
 #     return user
 
-from kungfu_chess.db.db import init_db, get_user, add_user, update_range, UserRecord
+from application.server.db.db import init_db, get_user, add_user, update_range, UserRecord
 
 def authenticate(name: str, password: str) -> UserRecord | None:
     """

@@ -9,13 +9,13 @@ import csv
 from dataclasses import dataclass, field
 from typing import Optional
 
-from kungfu_chess.engine.game_engine import GameEngine
-from kungfu_chess.input.controller import CommandExecutor, Command
-from kungfu_chess.model.board import TextBoard
-from kungfu_chess.model.config import PieceColor, COOLDOWN_CONFIG
-from kungfu_chess.model.player import Player
-from kungfu_chess.realtime.event_bus import EventBus
-from kungfu_chess.realtime.move_observer import MoveObserver
+from Core.engine.game_engine import GameEngine
+from Core.input.controller import CommandExecutor, Command
+from Core.model.board import TextBoard
+from Core.model.config import PieceColor, COOLDOWN_CONFIG
+from Core.model.player import Player
+from Core.realtime.event_bus import EventBus
+from Core.realtime.move_observer import MoveObserver
 
 
 @dataclass

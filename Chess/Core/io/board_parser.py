@@ -6,7 +6,7 @@ Reads the text-based input format and validates the board data.
 import sys
 from typing import Optional, Tuple, List
 
-from kungfu_chess.model.config import EMPTY_SQUARE, ERROR_MESSAGES
+from Core.model.config import EMPTY_SQUARE, ERROR_MESSAGES
 
 
 def load_from_input() -> Tuple[Optional[List[List[str]]], Optional[List[str]]]:

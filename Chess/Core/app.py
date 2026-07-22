@@ -12,7 +12,7 @@ sys.stdout.reconfigure(line_buffering=True)
 # to running as a module (python -m kungfu_chess.app).
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from kungfu_chess.texttests.script_runner import run_from_stdin
+from Core.texttests.script_runner import run_from_stdin
 
 
 def main() -> None:

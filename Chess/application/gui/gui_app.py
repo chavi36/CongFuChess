@@ -4,8 +4,8 @@ from application.bridge.game_session import GameSession
 from application.gui.animated_renderer import AnimatedRenderer
 from application.gui.gui_controller import GUIController
 from application.gui.move_log_panel import draw_move_log, draw_board_labels, PANEL_W
-from kungfu_chess.model.config import PieceColor
-from kungfu_chess.model.player import Player
+from Core.model.config import PieceColor
+from Core.model.player import Player
 from application.path_utils import resolve_project_path, resolve_pieces_dir, resolve_board_image
 
 # ── CONFIG ───────────────────────────────────────────────────────────────────

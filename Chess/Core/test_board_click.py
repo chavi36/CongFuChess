@@ -1,7 +1,7 @@
 import os
 import cv2
 import numpy as np
-from img import Img
+from Core.img import Img
 from application.path_utils import resolve_project_path, resolve_pieces_dir, resolve_board_image
 
 # ── CONFIG ───────────────────────────────────────────────────────────────────

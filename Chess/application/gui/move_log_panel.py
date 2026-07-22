@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from kungfu_chess.realtime.move_observer import MoveObserver
+from Core.realtime.move_observer import MoveObserver
 
 PANEL_W     = 250
 PANEL_H     = 700

@@ -12,12 +12,12 @@ Collision handling is delegated to CollisionRules:
 
 from typing import List, Optional
 
-from kungfu_chess.model.board import BoardInterface
-from kungfu_chess.model.game_state import GameState
-from kungfu_chess.realtime.motion import MoveMotion, AirborneEvent
-from kungfu_chess.realtime.event_bus import EventBus
-from kungfu_chess.rules.collision_rules import CollisionRules
-from kungfu_chess.model.config import EMPTY_SQUARE, TIME_CONFIG, get_pawn_config, PieceType, COOLDOWN_CONFIG, PIECES_VALUES
+from Core.model.board import BoardInterface
+from Core.model.game_state import GameState
+from Core.realtime.motion import MoveMotion, AirborneEvent
+from Core.realtime.event_bus import EventBus
+from Core.rules.collision_rules import CollisionRules
+from Core.model.config import EMPTY_SQUARE, TIME_CONFIG, get_pawn_config, PieceType, COOLDOWN_CONFIG, PIECES_VALUES
 
 
 class RealTimeArbiter:

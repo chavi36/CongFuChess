@@ -17,12 +17,12 @@ Does NOT decide when pieces arrive.
 
 from typing import Optional
 
-from kungfu_chess.model.board import BoardInterface
-from kungfu_chess.model.game_state import GameState
-from kungfu_chess.realtime.motion import MoveMotion, AirborneEvent
-from kungfu_chess.realtime.real_time_arbiter import RealTimeArbiter
-from kungfu_chess.rules.rule_engine import RuleEngine
-from kungfu_chess.model.config import TIME_CONFIG, EMPTY_SQUARE
+from Core.model.board import BoardInterface
+from Core.model.game_state import GameState
+from Core.realtime.motion import MoveMotion, AirborneEvent
+from Core.realtime.real_time_arbiter import RealTimeArbiter
+from Core.rules.rule_engine import RuleEngine
+from Core.model.config import TIME_CONFIG, EMPTY_SQUARE
 
 
 class GameEngine:

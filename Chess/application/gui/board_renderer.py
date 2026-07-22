@@ -1,6 +1,6 @@
 import numpy as np
-from kungfu_chess.img import Img
-from kungfu_chess.model.board import BoardInterface
+from Core.img import Img
+from Core.model.board import BoardInterface
 import os
 
 

@@ -13,8 +13,8 @@ Two types of collisions:
 """
 
 from typing import Optional, Tuple, List
-from kungfu_chess.realtime.motion import MoveMotion
-from kungfu_chess.model.board import BoardInterface
+from Core.realtime.motion import MoveMotion
+from Core.model.board import BoardInterface
 
 
 class CollisionRules:

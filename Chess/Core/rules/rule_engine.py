@@ -4,9 +4,9 @@ Combines per-piece rules into a single is_valid_move / get_move_distance API
 consumed by the GameEngine.
 """
 
-from kungfu_chess.model.board import BoardInterface
-from kungfu_chess.model.config import EMPTY_SQUARE
-from kungfu_chess.rules.piece_rules import PieceRules
+from Core.model.board import BoardInterface
+from Core.model.config import EMPTY_SQUARE
+from Core.rules.piece_rules import PieceRules
 
 
 class RuleEngine:

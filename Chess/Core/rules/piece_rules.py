@@ -3,8 +3,8 @@ Piece movement rules for Kungfu Chess.
 Contains per-piece-type validation helpers used by RuleEngine.
 """
 
-from kungfu_chess.model.board import BoardInterface
-from kungfu_chess.model.config import EMPTY_SQUARE, get_pawn_config
+from Core.model.board import BoardInterface
+from Core.model.config import EMPTY_SQUARE, get_pawn_config
 
 
 class PieceRules:

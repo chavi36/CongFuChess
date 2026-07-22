@@ -5,7 +5,7 @@ Board model for Kungfu Chess.
 from abc import ABC, abstractmethod
 from typing import List, Tuple
 
-from kungfu_chess.model.config import EMPTY_SQUARE
+from Core.model.config import EMPTY_SQUARE
 
 
 class BoardInterface(ABC):

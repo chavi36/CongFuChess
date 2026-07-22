@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from kungfu_chess.model.config import PieceColor
+from Core.model.config import PieceColor
 
 
 @dataclass

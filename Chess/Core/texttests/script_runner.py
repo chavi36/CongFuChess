@@ -5,12 +5,12 @@ Loads a board + command list and executes every command in order.
 
 from typing import List
 
-from kungfu_chess.model.board import TextBoard
-from kungfu_chess.engine.game_engine import GameEngine
-from kungfu_chess.input.controller import CommandExecutor, Command
-from kungfu_chess.texttests.script_parser import ScriptParser
-from kungfu_chess.io.board_parser import load_from_input, validate_board
-from kungfu_chess.io.board_printer import print_board
+from Core.model.board import TextBoard
+from Core.engine.game_engine import GameEngine
+from Core.input.controller import CommandExecutor, Command
+from Core.texttests.script_parser import ScriptParser
+from Core.io.board_parser import load_from_input, validate_board
+from Core.io.board_printer import print_board
 
 
 def _text_printer(board) -> None:

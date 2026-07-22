@@ -3,7 +3,7 @@ Board printer for Kungfu Chess.
 Renders the board to stdout in the standard text format.
 """
 
-from kungfu_chess.model.board import BoardInterface
+from Core.model.board import BoardInterface
 
 
 def print_board(board: BoardInterface) -> str:

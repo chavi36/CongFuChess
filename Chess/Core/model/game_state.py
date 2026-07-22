@@ -8,8 +8,8 @@ Event scheduling has moved to RealTimeArbiter.
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional
 
-from kungfu_chess.model.board import BoardInterface
-from kungfu_chess.realtime.motion import AirborneEvent
+from Core.model.board import BoardInterface
+from Core.realtime.motion import AirborneEvent
 
 
 @dataclass

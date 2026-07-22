@@ -103,3 +103,35 @@ def update_range(name: str, new_range: int, path: str = DB_PATH) -> None:
     conn.execute("UPDATE users SET range = ? WHERE name = ?", (new_range, name))
     conn.commit()
     conn.close()
+
+
+def authenticate(name: str, password: str) -> UserRecord | None:
+    """
+    Authenticate user:
+    - If user does not exist, register them automatically.
+    - If user exists, verify that the password matches. Return None if it doesn't.
+    """
+    user = get_user(name)
+    
+    if user is None:
+        add_user(name, password, range=1200)
+        return get_user(name)
+        
+    if user.password != password:
+        return None 
+        
+    return user
+
+
+def compute_elo(winner_range: int, loser_range: int, k: int = 32):
+    """Return (new_winner_range, new_loser_range)."""
+    expected = 1 / (1 + 10 ** ((loser_range - winner_range) / 400))
+    delta = int(k * (1 - expected))
+    return winner_range + delta, loser_range - delta
+
+
+def update_after_game(winner_name: str, winner_range: int,
+                      loser_name: str,  loser_range: int) -> None:
+    new_winner, new_loser = compute_elo(winner_range, loser_range)
+    update_range(winner_name, new_winner)
+    update_range(loser_name,  new_loser)

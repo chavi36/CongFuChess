@@ -6,8 +6,8 @@ Parses lines like "click 150 250", "wait 1000", "jump 50 150",
 
 from typing import Optional
 
-from kungfu_chess.input.board_mapper import pixel_to_grid
-from kungfu_chess.input.controller import Command
+from Core.input.board_mapper import pixel_to_grid
+from Core.input.controller import Command
 
 
 class ScriptParser:

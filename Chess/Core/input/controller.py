@@ -6,8 +6,8 @@ Translates parsed commands into engine calls.
 from dataclasses import dataclass
 from typing import Optional
 
-from kungfu_chess.engine.game_engine import GameEngine
-from kungfu_chess.model.config import EMPTY_SQUARE
+from Core.engine.game_engine import GameEngine
+from Core.model.config import EMPTY_SQUARE
 
 
 @dataclass
@@ -37,7 +37,7 @@ class CommandExecutor:
         return False
 
     def _execute_print(self) -> bool:
-        from kungfu_chess.io.board_printer import print_board
+        from Core.io.board_printer import print_board
         self.engine.process_pending_moves()
         if self._on_print:
             self._on_print(self.engine.board)
