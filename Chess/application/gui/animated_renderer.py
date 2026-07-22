@@ -10,16 +10,32 @@ import numpy as np
 import cv2
 from application.gui.board_renderer import BoardRenderer
 from application.gui.animation_clock import AnimationClock
-from application.bridge.game_session import RenderSnapshot
+from Core.engine.game_engine import RenderSnapshot
+from Core.model.config import EMPTY_SQUARE, EventTopic, CooldownKind, BOARD_COLS, BOARD_ROWS
 
-CAPTURE_FLASH_DURATION = 2.0  # seconds
+# ── timing constants ──────────────────────────────────────────────────────────
+CAPTURE_FLASH_DURATION      = 2.0   # seconds
+ANIMATION_FLASH_DURATION    = 0.4   # seconds
+ANIMATION_FLASH_ALPHA_SCALE = 0.15
 
-SELECTION_HIGHLIGHT_COLOR_BGR = (0, 180, 0)
-CAPTURE_FLASH_COLOR_BGR = (0, 220, 220)
-COOLDOWN_BAR_COLOR_BGR = (0, 0, 200)
-GAME_OVER_OVERLAY_COLOR_BGR = (80, 80, 80)
-GAME_OVER_TEXT_COLOR_BGR = (0, 0, 220)
-GAME_OVER_MENU_TEXT_COLOR_BGR = (200, 200, 200)
+# ── blend alpha constants ─────────────────────────────────────────────────────
+SELECTION_ALPHA          = 0.35
+CAPTURE_FLASH_ALPHA_MAX  = 0.4
+COOLDOWN_BAR_ALPHA       = 0.45
+GAME_OVER_OVERLAY_ALPHA  = 0.6
+
+# ── colour constants (BGR) ────────────────────────────────────────────────────
+SELECTION_HIGHLIGHT_COLOR_BGR  = (0, 180, 0)
+CAPTURE_FLASH_COLOR_BGR        = (0, 220, 220)
+COOLDOWN_BAR_COLOR_BGR         = (0, 0, 200)
+GAME_OVER_OVERLAY_COLOR_BGR    = (80, 80, 80)
+GAME_OVER_TEXT_COLOR_BGR       = (0, 0, 220)
+GAME_OVER_MENU_TEXT_COLOR_BGR  = (200, 200, 200)
+ANIMATION_FLASH_COLOR_BGR      = (255, 255, 255)
+
+# ── animation status keys ─────────────────────────────────────────────────────
+ANIM_STATUS_MOVE = "move"
+ANIM_STATUS_IDLE = "idle"
 
 
 def _coerce_snapshot(snapshot) -> RenderSnapshot:
@@ -29,8 +45,8 @@ def _coerce_snapshot(snapshot) -> RenderSnapshot:
         return SimpleNamespace(
             clock=snapshot.get("clock", 0),
             board=snapshot.get("board", []),
-            board_width=snapshot.get("board_width", 8),
-            board_height=snapshot.get("board_height", 8),
+            board_width=snapshot.get("board_width", BOARD_COLS),
+            board_height=snapshot.get("board_height", BOARD_ROWS),
             active_moves=[SimpleNamespace(**m) for m in snapshot.get("active_moves", [])],
             cooldowns=[SimpleNamespace(**c) for c in snapshot.get("cooldowns", [])],
             game_over=snapshot.get("game_over", False),
@@ -42,7 +58,7 @@ def _coerce_snapshot(snapshot) -> RenderSnapshot:
 def _cell_status(snapshot: RenderSnapshot) -> dict:
     status = {}
     for motion in snapshot.active_moves:
-        status[(motion.from_row, motion.from_col)] = ("move", motion.start_time)
+        status[(motion.from_row, motion.from_col)] = (ANIM_STATUS_MOVE, motion.start_time)
     for cd in snapshot.cooldowns:
         start_time = cd.end_time - cd.duration
         status[(cd.row, cd.col)] = (cd.kind, start_time)
@@ -65,21 +81,21 @@ class AnimatedRenderer(BoardRenderer):
     def __init__(self, board_path, pieces_dir, window_w, window_h, board_size, event_bus=None):
         super().__init__(board_path, pieces_dir, window_w, window_h, board_size)
         self._anim = AnimationClock(pieces_dir, self.cell_size)
-        # (row, col) -> wall time when capture happened
         self._capture_flashes: dict = {}
         self._event_bus = event_bus
         self._animation_flash_until = 0.0
         if self._event_bus is not None:
-            self._event_bus.subscribe("capture", self._handle_capture)
-            self._event_bus.subscribe("game.ended", self._handle_game_event)
-            self._event_bus.subscribe("game.started", self._handle_game_event)
+            self._subscribe_events()
 
     def set_event_bus(self, event_bus) -> None:
         self._event_bus = event_bus
         if self._event_bus is not None:
-            self._event_bus.subscribe("capture", self._handle_capture)
-            self._event_bus.subscribe("game.ended", self._handle_game_event)
-            self._event_bus.subscribe("game.started", self._handle_game_event)
+            self._subscribe_events()
+
+    def _subscribe_events(self) -> None:
+        self._event_bus.subscribe(EventTopic.CAPTURE, self._handle_capture)
+        self._event_bus.subscribe(EventTopic.GAME_ENDED, self._handle_game_event)
+        self._event_bus.subscribe(EventTopic.GAME_STARTED, self._handle_game_event)
 
     def _handle_capture(self, payload) -> None:
         if payload is None:
@@ -87,13 +103,12 @@ class AnimatedRenderer(BoardRenderer):
         self.notify_capture(payload.get("row", 0), payload.get("col", 0))
 
     def _handle_game_event(self, payload) -> None:
-        self._animation_flash_until = time.monotonic() + 0.4
+        self._animation_flash_until = time.monotonic() + ANIMATION_FLASH_DURATION
 
     def notify_capture(self, row: int, col: int) -> None:
-        """Call this when a piece is captured at (row, col)."""
         self._capture_flashes[(row, col)] = time.monotonic()
 
-    def render(self, snapshot: RenderSnapshot, selected=None) -> np.ndarray:
+    def render(self, snapshot: RenderSnapshot, selected=None, flipped: bool = False) -> np.ndarray:
         snapshot = _coerce_snapshot(snapshot)
         clock    = snapshot.clock
         statuses = _cell_status(snapshot)
@@ -102,23 +117,28 @@ class AnimatedRenderer(BoardRenderer):
         canvas = np.zeros((self.window_h, self.window_w, 3), dtype=np.uint8)
         self._board_img.draw_on_np(canvas, self.offset_x, self.offset_y)
 
-        # ── selection highlight (green) ──────────────────────────────
+        def _cell_px(r, c):
+            """Convert logical (row, col) to pixel top-left, respecting flip."""
+            dr = (BOARD_ROWS - 1 - r) if flipped else r
+            dc = (BOARD_COLS - 1 - c) if flipped else c
+            return self.offset_x + dc * self.cell_size, self.offset_y + dr * self.cell_size
+
+        # ── selection highlight ──────────────────────────────────────
         if selected is not None:
             r, c = selected
-            px = self.offset_x + c * self.cell_size
-            py = self.offset_y + r * self.cell_size
-            _blend(canvas, px, py, self.cell_size, self.cell_size, SELECTION_HIGHLIGHT_COLOR_BGR, 0.35)
+            px, py = _cell_px(r, c)
+            _blend(canvas, px, py, self.cell_size, self.cell_size,
+                   SELECTION_HIGHLIGHT_COLOR_BGR, SELECTION_ALPHA)
 
-        # ── capture flash (yellow) ───────────────────────────────────
+        # ── capture flash ────────────────────────────────────────────
         expired = [k for k, t in self._capture_flashes.items()
                    if now - t > CAPTURE_FLASH_DURATION]
         for k in expired:
             del self._capture_flashes[k]
         for (r, c) in self._capture_flashes:
-            px = self.offset_x + c * self.cell_size
-            py = self.offset_y + r * self.cell_size
+            px, py = _cell_px(r, c)
             age   = now - self._capture_flashes[(r, c)]
-            alpha = 0.4 * (1.0 - age / CAPTURE_FLASH_DURATION)
+            alpha = CAPTURE_FLASH_ALPHA_MAX * (1.0 - age / CAPTURE_FLASH_DURATION)
             _blend(canvas, px, py, self.cell_size, self.cell_size, CAPTURE_FLASH_COLOR_BGR, alpha)
 
         # ── moving pieces (interpolated) ─────────────────────────────
@@ -135,11 +155,17 @@ class AnimatedRenderer(BoardRenderer):
             local_t   = seg_t - seg_i
             r0, c0    = path[seg_i]
             r1, c1    = path[seg_i + 1]
-            px = self.offset_x + int((c0 + (c1 - c0) * local_t) * self.cell_size)
-            py = self.offset_y + int((r0 + (r1 - r0) * local_t) * self.cell_size)
+            # interpolate in logical space then convert to pixel
+            log_r = r0 + (r1 - r0) * local_t
+            log_c = c0 + (c1 - c0) * local_t
+            if flipped:
+                log_r = (BOARD_ROWS - 1) - log_r
+                log_c = (BOARD_COLS - 1) - log_c
+            px = self.offset_x + int(log_c * self.cell_size)
+            py = self.offset_y + int(log_r * self.cell_size)
             try:
                 sprite_code = self._resolve_code(motion.piece_code)
-                frame = self._anim.get_frame(sprite_code, "move", elapsed)
+                frame = self._anim.get_frame(sprite_code, ANIM_STATUS_MOVE, elapsed)
                 if frame is not None:
                     frame.draw_on_np(canvas, px, py)
             except FileNotFoundError:
@@ -148,25 +174,24 @@ class AnimatedRenderer(BoardRenderer):
         # ── stationary pieces ────────────────────────────────────────
         cd_map = {(cd.row, cd.col): cd for cd in snapshot.cooldowns}
         for r, c, piece in snapshot.board:
-            if (r, c) in moving_cells or piece == '.':
+            if (r, c) in moving_cells or piece == EMPTY_SQUARE:
                 continue
-            px = self.offset_x + c * self.cell_size
-            py = self.offset_y + r * self.cell_size
+            px, py = _cell_px(r, c)
             try:
                 sprite_code   = self._resolve_code(piece)
-                status, start = statuses.get((r, c), ("idle", 0))
+                status, start = statuses.get((r, c), (ANIM_STATUS_IDLE, 0))
                 if sprite_code is None:
                     continue
                 if not os.path.isdir(os.path.join(self.pieces_dir, sprite_code)):
                     resolved = self._resolve_code(piece)
                     if resolved and os.path.isdir(os.path.join(self.pieces_dir, resolved)):
                         sprite_code = resolved
-                elapsed       = clock - start
-                if status in ("long_rest", "short_rest"):
+                elapsed = clock - start
+                if status in (CooldownKind.LONG_REST, CooldownKind.SHORT_REST):
                     cd = cd_map.get((r, c))
                     if cd and cd.duration > 0:
                         entry = self._anim._data.get((sprite_code, status)) \
-                             or self._anim._data.get((sprite_code, "idle"))
+                             or self._anim._data.get((sprite_code, ANIM_STATUS_IDLE))
                         if entry:
                             total_ms = entry["ms_per_frame"] * len(entry["frames"])
                             elapsed  = int(elapsed * total_ms / cd.duration)
@@ -183,17 +208,19 @@ class AnimatedRenderer(BoardRenderer):
                 progress = (cd.end_time - clock) / cd.duration
                 bar_h    = int(self.cell_size * progress)
                 bar_y    = py + self.cell_size - bar_h
-                _blend(canvas, px, bar_y, self.cell_size, bar_h, COOLDOWN_BAR_COLOR_BGR, 0.45)
+                _blend(canvas, px, bar_y, self.cell_size, bar_h, COOLDOWN_BAR_COLOR_BGR, COOLDOWN_BAR_ALPHA)
 
         if now < self._animation_flash_until:
-            alpha = 0.15 * (1.0 - (self._animation_flash_until - now) / 0.4)
+            alpha = ANIMATION_FLASH_ALPHA_SCALE * (
+                1.0 - (self._animation_flash_until - now) / ANIMATION_FLASH_DURATION
+            )
             _blend(canvas, self.offset_x, self.offset_y,
-                   self.board_size, self.board_size, (255, 255, 255), alpha)
+                   self.board_size, self.board_size, ANIMATION_FLASH_COLOR_BGR, alpha)
 
         # ── game-over overlay ────────────────────────────────────────
         if snapshot.game_over:
             _blend(canvas, self.offset_x, self.offset_y,
-                   self.board_size, self.board_size, GAME_OVER_OVERLAY_COLOR_BGR, 0.6)
+                   self.board_size, self.board_size, GAME_OVER_OVERLAY_COLOR_BGR, GAME_OVER_OVERLAY_ALPHA)
             cx = self.offset_x + self.board_size // 2
             cy = self.offset_y + self.board_size // 2
             cv2.putText(canvas, "GAME OVER",

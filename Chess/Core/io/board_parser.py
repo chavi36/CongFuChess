@@ -3,10 +3,28 @@ Board parser for Kungfu Chess.
 Reads the text-based input format and validates the board data.
 """
 
+import csv
 import sys
 from typing import Optional, Tuple, List
 
-from Core.model.config import EMPTY_SQUARE, ERROR_MESSAGES
+from Core.model.board import TextBoard
+from Core.model.config import EMPTY_SQUARE, VALID_COLORS, VALID_TYPES, ERROR_MESSAGES, PieceColor
+
+_CSV_WHITE_COLOR = "W"  # color letter used in board CSV files
+
+
+def load_board_from_csv(path: str) -> TextBoard:
+    """Load a TextBoard from a CSV file using the standard piece encoding."""
+    with open(path, newline="") as f:
+        rows = list(csv.reader(f))
+
+    def convert(code: str) -> str:
+        if not code:
+            return EMPTY_SQUARE
+        piece, color = code[0], code[1]
+        return (PieceColor.WHITE.value if color == _CSV_WHITE_COLOR else PieceColor.BLACK.value) + piece
+
+    return TextBoard([[convert(cell) for cell in row] for row in rows])
 
 
 def load_from_input() -> Tuple[Optional[List[List[str]]], Optional[List[str]]]:
@@ -33,8 +51,8 @@ def validate_board(board_data: List[List[str]]) -> bool:
         if len(row) != width:
             print(ERROR_MESSAGES['ROW_WIDTH_MISMATCH'], flush=True)
             return False
-    valid_colors = {'w', 'b'}
-    valid_types  = {'K', 'Q', 'R', 'B', 'N', 'P'}
+    valid_colors = VALID_COLORS
+    valid_types  = VALID_TYPES
     for row in board_data:
         for token in row:
             if token != EMPTY_SQUARE:

@@ -1,6 +1,7 @@
 import numpy as np
 from Core.img import Img
 from Core.model.board import BoardInterface
+from Core.model.config import EMPTY_SQUARE, BOARD_COLS, BOARD_ROWS
 import os
 
 
@@ -99,7 +100,7 @@ class BoardRenderer:
         for r in range(board.get_height()):
             for c in range(board.get_width()):
                 piece = board.get_piece(r, c)
-                if piece == '.':
+                if piece == EMPTY_SQUARE:
                     continue
                 try:
                     sprite = self._piece_sprite(piece)
@@ -119,4 +120,4 @@ class BoardRenderer:
         return row, col
 
     def in_bounds(self, row, col):
-        return 0 <= row < 8 and 0 <= col < 8
+        return 0 <= row < BOARD_ROWS and 0 <= col < BOARD_COLS

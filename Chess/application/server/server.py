@@ -1,21 +1,21 @@
 """
 server.py — WebSocket entry point.
 
-Each client connects and sends:
-    {"type": "login", "name": "...", "password": "..."}
-
-The server responds with "ok" or "error", then "waiting" until a match is found,
-then hands the pair off to game_server.run_game().
+Login flow:
+  1. Client sends LoginMsg.
+  2. Server authenticates and responds OkMsg.
+  3. If the user has a game waiting for reconnection, they are routed back in.
+  4. Otherwise they are queued in the matchmaker and sent WaitingMsg.
 """
 
 import asyncio
 import websockets
 
-from application.server.db.db import authenticate
-from application.server.db.db import init_db
+from application.server.db.db import authenticate, init_db, get_leaderboard
 from application.server.matchmaker import Matchmaker
-from application.server.game_server import run_game
-from application.server.protocol import encode, decode, ErrorMsg, OkMsg, WaitingMsg
+from application.server.game_server import run_game, handle_reconnect
+from application.server.protocol import encode, decode, ErrorMsg, OkMsg, WaitingMsg, LeaderboardMsg
+from Core.model.config import MsgType
 
 HOST = "0.0.0.0"
 PORT = 5555
@@ -25,11 +25,10 @@ matchmaker = Matchmaker()
 
 async def _handle_client(ws) -> None:
     try:
-        # ── authentication ────────────────────────────────────────────
         raw = await ws.recv()
         msg = decode(raw)
 
-        if msg.get("type") != "login":
+        if msg.get("type") != MsgType.LOGIN:
             await ws.send(encode(ErrorMsg(reason="expected login")))
             return
 
@@ -39,10 +38,20 @@ async def _handle_client(ws) -> None:
             return
 
         await ws.send(encode(OkMsg(range=user.range)))
-        await ws.send(encode(WaitingMsg()))
+        await ws.send(encode(LeaderboardMsg(
+            entries=[{"name": n, "range": r} for n, r in get_leaderboard(10)]
+        )))
 
-        # ── matchmaking — register once, then poll ─────────────────
+        # Check if this user is reconnecting to an active game
+        done_future = await handle_reconnect(user.name, ws)
+        if done_future is not None:
+            await done_future  # keep ws alive until game ends
+            return
+
+        # New connection — queue for matchmaking
+        await ws.send(encode(WaitingMsg()))
         matchmaker.register(user, ws)
+
         result = None
         while result is None:
             result = await asyncio.get_event_loop().run_in_executor(
@@ -69,7 +78,7 @@ async def main():
     init_db()
     print(f"[server] listening on ws://{HOST}:{PORT}")
     async with websockets.serve(_handle_client, HOST, PORT):
-        await asyncio.Future()  # run forever
+        await asyncio.Future()
 
 
 if __name__ == "__main__":

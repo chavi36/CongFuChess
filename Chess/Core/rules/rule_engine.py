@@ -5,7 +5,7 @@ consumed by the GameEngine.
 """
 
 from Core.model.board import BoardInterface
-from Core.model.config import EMPTY_SQUARE
+from Core.model.config import EMPTY_SQUARE, PieceType
 from Core.rules.piece_rules import PieceRules
 
 
@@ -29,19 +29,19 @@ class RuleEngine:
         if target != EMPTY_SQUARE and target[0] == piece_color:
             return False
 
-        if piece_type == 'P':
+        if piece_type == PieceType.PAWN.value:
             return self._piece_rules.is_valid_pawn_move(
                 from_row, from_col, to_row, to_col, piece_color)
-        if piece_type == 'N':
+        if piece_type == PieceType.KNIGHT.value:
             return self._piece_rules.is_valid_knight_move(
                 from_row, from_col, to_row, to_col)
-        if piece_type == 'K':
+        if piece_type == PieceType.KING.value:
             return self._piece_rules.is_valid_king_move(from_row, from_col, to_row, to_col)
-        if piece_type == 'R':
+        if piece_type == PieceType.ROOK.value:
             return self._piece_rules.is_valid_rook_move(from_row, from_col, to_row, to_col)
-        if piece_type == 'B':
+        if piece_type == PieceType.BISHOP.value:
             return self._piece_rules.is_valid_bishop_move(from_row, from_col, to_row, to_col)
-        if piece_type == 'Q':
+        if piece_type == PieceType.QUEEN.value:
             return self._piece_rules.is_valid_queen_move(from_row, from_col, to_row, to_col)
 
         return False

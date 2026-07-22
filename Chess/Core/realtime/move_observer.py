@@ -3,6 +3,9 @@ from datetime import datetime
 from typing import List, Tuple
 
 
+from Core.model.config import EventTopic
+
+
 def cell_to_notation(row: int, col: int) -> str:
     """Convert (row, col) to chess notation e.g. (6, 0) -> a2"""
     return chr(ord('a') + col) + str(8 - row)
@@ -19,7 +22,7 @@ class MoveObserver:
         self.entries: List[Tuple[str, str, str, str]] = []
         self._event_bus = event_bus
         if self._event_bus is not None:
-            self._event_bus.subscribe("move.arrived", self._handle_event)
+            self._event_bus.subscribe(EventTopic.MOVE_ARRIVED, self._handle_event)
 
     def _handle_event(self, payload) -> None:
         if payload is None:

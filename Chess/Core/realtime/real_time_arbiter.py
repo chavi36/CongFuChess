@@ -17,7 +17,14 @@ from Core.model.game_state import GameState
 from Core.realtime.motion import MoveMotion, AirborneEvent
 from Core.realtime.event_bus import EventBus
 from Core.rules.collision_rules import CollisionRules
-from Core.model.config import EMPTY_SQUARE, TIME_CONFIG, get_pawn_config, PieceType, COOLDOWN_CONFIG, PIECES_VALUES
+from Core.model.config import (
+    EMPTY_SQUARE, TIME_CONFIG, get_pawn_config,
+    PieceType, PieceColor, COOLDOWN_CONFIG, PIECES_VALUES,
+    CooldownKind, EventTopic,
+)
+
+_KIND_MOVE = 'move'
+_KIND_JUMP = 'jump'
 
 
 class RealTimeArbiter:
@@ -37,7 +44,6 @@ class RealTimeArbiter:
         self._collision = CollisionRules(self._board, rule_engine)
 
     def set_observers(self, observers: dict) -> None:
-        """observers: {'w': MoveObserver, 'b': MoveObserver}"""
         self._observers = observers
 
     def set_renderer(self, renderer) -> None:
@@ -92,28 +98,27 @@ class RealTimeArbiter:
         pending = []
         for motion in list(self._active_moves):
             if motion.arrival_time <= target_time:
-                pending.append(('move', motion.arrival_time, motion))
+                pending.append((_KIND_MOVE, motion.arrival_time, motion))
         for jump in list(self._active_jumps):
             if jump.end_time <= target_time:
-                pending.append(('jump', jump.end_time, jump))
+                pending.append((_KIND_JUMP, jump.end_time, jump))
 
         pending.sort(key=lambda x: x[1])
 
         for kind, t, event in pending:
-            if kind == 'move':
+            if kind == _KIND_MOVE:
                 self._resolve_arrival(event)
                 if event in self._active_moves:
                     self._active_moves.remove(event)
             else:
                 self._state.unblock_source(event.row, event.col)
                 self._active_jumps.remove(event)
-                # cooldown after landing from jump
                 piece_code = self._board.get_piece(event.row, event.col)
                 if piece_code != EMPTY_SQUARE:
                     piece_type = piece_code[1]
                     cooldown = COOLDOWN_CONFIG.get(piece_type, {}).get('jump', 0)
                     if cooldown:
-                        self._state.set_cooldown(event.row, event.col, t + cooldown, "short_rest")
+                        self._state.set_cooldown(event.row, event.col, t + cooldown, CooldownKind.SHORT_REST)
 
     # ------------------------------------------------------------------
     # En-route collision resolution
@@ -132,7 +137,6 @@ class RealTimeArbiter:
                 if not self._collision.is_en_route_collision(a, b):
                     continue
 
-                # Find the shared square where they meet at the same time
                 shared = set(a.path[:-1]) & set(b.path[:-1])
                 collision_square = None
                 for sq in a.path[:-1]:
@@ -151,12 +155,7 @@ class RealTimeArbiter:
                 cancelled.add(id(a))
                 cancelled.add(id(b))
 
-    def _stop_at_last_legal(self, motion: MoveMotion,
-                             collision_square) -> None:
-        """
-        Move the piece to its last legal position before collision_square,
-        then remove the motion from active moves.
-        """
+    def _stop_at_last_legal(self, motion: MoveMotion, collision_square) -> None:
         self._active_moves.remove(motion)
         self._state.unblock_source(motion.from_row, motion.from_col)
 
@@ -165,7 +164,6 @@ class RealTimeArbiter:
 
         last_legal = self._collision.last_legal_position(motion, collision_square)
         if last_legal is None:
-            # Jumping piece or no legal square — stays at source (already there)
             return
 
         piece_code = self._board.get_piece(motion.from_row, motion.from_col)
@@ -196,36 +194,31 @@ class RealTimeArbiter:
         piece_type  = piece_code[1]
         target      = self._board.get_piece(to_row, to_col)
 
-        # Check for destination collision with another active motion
         rival = self._find_destination_rival(motion)
         if rival is not None:
             winner, _ = self._collision.resolve_destination_collision(motion, rival)
             if winner is not motion:
-                # This motion loses — don't move
                 return
 
-        # Same-color piece already on destination (arrived earlier)
         if target != EMPTY_SQUARE and target[0] == piece_color:
             return
 
-        king_capture = (target != EMPTY_SQUARE and target[1] == 'K')
+        king_capture = (target != EMPTY_SQUARE and target[1] == PieceType.KING.value)
 
-        # Pawn promotion is disabled when the pawn captures the king and ends the game.
-        if piece_type == 'P' and not king_capture:
+        if piece_type == PieceType.PAWN.value and not king_capture:
             config = get_pawn_config(self._board.get_height())[
-                'white' if piece_color == 'w' else 'black']
+                'white' if piece_color == PieceColor.WHITE.value else 'black']
             if to_row == config['promotion_row']:
                 piece_code = piece_color + PieceType.QUEEN.value
 
         self._board.set_piece(from_row, from_col, EMPTY_SQUARE)
         self._board.set_piece(to_row, to_col, piece_code)
 
-        # notify observer on arrival
         if piece_color in self._observers:
             self._observers[piece_color].on_move(self._state.clock, piece_code,
                                                  from_row, from_col, to_row, to_col)
 
-        self._publish("move.arrived", {
+        self._publish(EventTopic.MOVE_ARRIVED, {
             "color": piece_color,
             "piece": piece_code,
             "from": (from_row, from_col),
@@ -233,11 +226,10 @@ class RealTimeArbiter:
             "clock": self._state.clock,
         })
 
-        # award points to the capturing player based on captured piece value
         if target != EMPTY_SQUARE and piece_color in self._players:
             gained_points = PIECES_VALUES.get(target[1], 0)
             self._players[piece_color].add_score(gained_points)
-            self._publish("score.updated", {
+            self._publish(EventTopic.SCORE_UPDATED, {
                 "color": piece_color,
                 "points": gained_points,
                 "score": self._players[piece_color].score,
@@ -245,23 +237,21 @@ class RealTimeArbiter:
             })
             if self._renderer:
                 self._renderer.notify_capture(to_row, to_col)
-                self._publish("capture", {"row": to_row, "col": to_col, "color": piece_color})
+                self._publish(EventTopic.CAPTURE, {"row": to_row, "col": to_col, "color": piece_color})
 
-        # cooldown after arrival
         piece_type = piece_code[1]
         cooldown = COOLDOWN_CONFIG.get(piece_type, {}).get('move', 0)
         if cooldown:
-            self._state.set_cooldown(to_row, to_col, motion.arrival_time + cooldown, "long_rest")
+            self._state.set_cooldown(to_row, to_col, motion.arrival_time + cooldown, CooldownKind.LONG_REST)
 
-        if len(target) > 1 and target[1] == 'K':
+        if len(target) > 1 and target[1] == PieceType.KING.value:
             self._state.end_game()
-            self._publish("game.ended", {
+            self._publish(EventTopic.GAME_ENDED, {
                 "winner": piece_color,
                 "clock": self._state.clock,
             })
 
     def _find_destination_rival(self, motion: MoveMotion) -> Optional[MoveMotion]:
-        """Return another active motion heading to the same destination, if any."""
         for other in self._active_moves:
             if other is not motion and other.to_row == motion.to_row and other.to_col == motion.to_col:
                 return other

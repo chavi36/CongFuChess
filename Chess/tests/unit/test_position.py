@@ -1,5 +1,5 @@
 import unittest
-from application.kungfu_chess.model.position import Position
+from Core.model.position import Position
 
 
 class TestPosition(unittest.TestCase):

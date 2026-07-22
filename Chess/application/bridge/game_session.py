@@ -5,63 +5,20 @@ Owns the lifecycle of a single game: engine, event bus, observers, and executor.
 The GUI only interacts with this class; it never touches the engine directly.
 """
 
-import csv
-from dataclasses import dataclass, field
 from typing import Optional
 
-from Core.engine.game_engine import GameEngine
+from Core.engine.game_engine import GameEngine, RenderSnapshot
 from Core.input.controller import CommandExecutor, Command
-from Core.model.board import TextBoard
-from Core.model.config import PieceColor, COOLDOWN_CONFIG
+from Core.io.board_parser import load_board_from_csv
+from Core.model.config import PieceColor, EventTopic, CommandType
 from Core.model.player import Player
 from Core.realtime.event_bus import EventBus
 from Core.realtime.move_observer import MoveObserver
 
-
-@dataclass
-class MotionSnapshot:
-    from_row: int
-    from_col: int
-    to_row: int
-    to_col: int
-    start_time: int
-    arrival_time: int
-    piece_code: str
-    path: list
-
-
-@dataclass
-class CooldownSnapshot:
-    row: int
-    col: int
-    end_time: int
-    kind: str
-    duration: int
-
-
-@dataclass
-class RenderSnapshot:
-    clock: int
-    board: list                          # list of (row, col, piece_code)
-    board_width: int
-    board_height: int
-    active_moves: list                   # list of MotionSnapshot
-    cooldowns: list                      # list of CooldownSnapshot
-    game_over: bool
-    winner: Optional[str] = None
-
-
-def _load_board(path: str) -> TextBoard:
-    with open(path, newline="") as f:
-        rows = list(csv.reader(f))
-
-    def convert(code):
-        if not code:
-            return "."
-        piece, color = code[0], code[1]
-        return ("w" if color == "W" else "b") + piece
-
-    return TextBoard([[convert(cell) for cell in row] for row in rows])
+_PIECE_COLOR_FOR_ROLE = {
+    "white": PieceColor.WHITE.value,
+    "black": PieceColor.BLACK.value,
+}
 
 
 class GameSession:
@@ -77,83 +34,79 @@ class GameSession:
         self.white = white
         self.black = black
 
-        self.event_bus = EventBus()
-        self.white_observer = MoveObserver(color="w", event_bus=self.event_bus)
-        self.black_observer = MoveObserver(color="b", event_bus=self.event_bus)
+        self.event_bus      = EventBus()
+        self.white_observer = MoveObserver(color=PieceColor.WHITE.value, event_bus=self.event_bus)
+        self.black_observer = MoveObserver(color=PieceColor.BLACK.value, event_bus=self.event_bus)
 
-        board = _load_board(board_csv)
+        board = load_board_from_csv(board_csv)
         self.engine = GameEngine(board, players=[white, black], event_bus=self.event_bus)
-        self.engine.arbiter.set_observers({"w": self.white_observer, "b": self.black_observer})
+        self.engine.arbiter.set_observers({
+            PieceColor.WHITE.value: self.white_observer,
+            PieceColor.BLACK.value: self.black_observer,
+        })
 
         if renderer is not None:
-            self.engine.arbiter.set_renderer(renderer)
             renderer.set_event_bus(self.event_bus)
 
         self.executor = CommandExecutor(self.engine)
-        self.event_bus.publish("game.started", {"clock": 0})
+        self.event_bus.publish(EventTopic.GAME_STARTED, {"clock": 0})
 
     # ------------------------------------------------------------------
     # GUI-facing API
     # ------------------------------------------------------------------
 
     def get_render_snapshot(self) -> RenderSnapshot:
-        """Return all data the renderer needs — no engine objects leak out."""
-        engine = self.engine
-        clock  = engine.state.clock
+        return self.engine.get_render_snapshot(winner=self.winner())
 
-        board_pieces = [
-            (r, c, engine.board.get_piece(r, c))
-            for r in range(engine.board.get_height())
-            for c in range(engine.board.get_width())
-        ]
+    def send_action(self, action_type: str, row: int = None, col: int = None) -> bool:
+        """Satisfies ActionSender protocol — routes to click/jump for local play."""
+        if action_type == CommandType.CLICK:
+            return self.click(row, col)
+        if action_type == CommandType.JUMP:
+            return self.jump(row, col)
+        return False
 
-        active_moves = [
-            MotionSnapshot(
-                from_row=m.from_row, from_col=m.from_col,
-                to_row=m.to_row,     to_col=m.to_col,
-                start_time=m.start_time, arrival_time=m.arrival_time,
-                piece_code=m.piece_code, path=m.path,
-            )
-            for m in engine.arbiter._active_moves
-        ]
+    def click_as(self, role: str, row: int, col: int) -> bool:
+        """Click enforcing piece ownership — role is 'white' or 'black'."""
+        color = _PIECE_COLOR_FOR_ROLE.get(role)
+        if color is None:
+            return False  # viewer: no write access
+        piece = self.engine.board.get_piece(row, col)
+        # Allow clicking empty squares only when a piece is already selected
+        from Core.model.config import EMPTY_SQUARE
+        if piece != EMPTY_SQUARE and piece[0] != color:
+            # Trying to select an enemy piece — only allowed as a move target
+            if not self.engine.state.has_selected_piece():
+                return False
+            selected = self.engine.state.selected_piece
+            if selected and self.engine.board.get_piece(*selected)[0] != color:
+                return False
+        return self.click(row, col)
 
-        cooldowns = []
-        for (row, col), (end_time, kind) in engine.state._cooldowns.items():
-            if clock < end_time:
-                piece = engine.board.get_piece(row, col)
-                duration = COOLDOWN_CONFIG.get(piece[1], {}).get(
-                    "move" if kind == "long_rest" else "jump", 0
-                ) if len(piece) >= 2 else 0
-                cooldowns.append(CooldownSnapshot(row, col, end_time, kind, duration))
-
-        return RenderSnapshot(
-            clock=clock,
-            board=board_pieces,
-            board_width=engine.board.get_width(),
-            board_height=engine.board.get_height(),
-            active_moves=active_moves,
-            cooldowns=cooldowns,
-            game_over=engine.state.is_game_over(),
-            winner=self.winner(),
-        )
+    def jump_as(self, role: str, row: int, col: int) -> bool:
+        """Jump enforcing piece ownership — role is 'white' or 'black'."""
+        color = _PIECE_COLOR_FOR_ROLE.get(role)
+        if color is None:
+            return False  # viewer: no write access
+        piece = self.engine.board.get_piece(row, col)
+        from Core.model.config import EMPTY_SQUARE
+        if piece == EMPTY_SQUARE or piece[0] != color:
+            return False
+        return self.jump(row, col)
 
     def tick(self, elapsed_ms: int) -> None:
-        """Advance the game clock by elapsed_ms milliseconds."""
         self.engine.advance_time(elapsed_ms)
 
     def click(self, row: int, col: int) -> bool:
-        """Handle a board cell click. Returns True if the action was accepted."""
-        return self.executor.execute(Command(cmd_type="click", row=row, col=col))
+        return self.executor.execute(Command(cmd_type=CommandType.CLICK, row=row, col=col))
 
     def jump(self, row: int, col: int) -> bool:
-        """Handle a double-click (jump) on a cell."""
-        return self.executor.execute(Command(cmd_type="jump", row=row, col=col))
+        return self.executor.execute(Command(cmd_type=CommandType.JUMP, row=row, col=col))
 
     def is_over(self) -> bool:
         return self.engine.state.is_game_over()
 
-    def winner(self) -> str | None:
-        """Return the winning player's name, or None if the game is still running."""
+    def winner(self) -> Optional[str]:
         if not self.is_over():
             return None
         return self.white.name if self.white.score >= self.black.score else self.black.name

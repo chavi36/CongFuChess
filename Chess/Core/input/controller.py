@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from Core.engine.game_engine import GameEngine
-from Core.model.config import EMPTY_SQUARE
+from Core.model.config import EMPTY_SQUARE, CommandType
 
 
 @dataclass
@@ -24,15 +24,15 @@ class CommandExecutor:
         self._on_print = on_print
 
     def execute(self, command: Command) -> bool:
-        if command.cmd_type == 'print':
+        if command.cmd_type == CommandType.PRINT:
             return self._execute_print()
         if self.engine.state.is_game_over():
             return False
-        if command.cmd_type == 'jump':
+        if command.cmd_type == CommandType.JUMP:
             return self._execute_jump(command.row, command.col)
-        if command.cmd_type == 'click':
+        if command.cmd_type == CommandType.CLICK:
             return self._execute_click(command.row, command.col)
-        if command.cmd_type == 'wait':
+        if command.cmd_type == CommandType.WAIT:
             return self._execute_wait(command.time)
         return False
 
