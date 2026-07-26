@@ -51,6 +51,13 @@ def _snapshot_msg(session: GameSession) -> SnapshotMsg:
     )
 
 
+def _collect_ws_targets(ws_slots: dict, viewer_wss: list | None = None) -> list:
+    targets = [ws_slots.get("white"), ws_slots.get("black")]
+    if viewer_wss:
+        targets.extend(list(viewer_wss))
+    return [ws for ws in targets if ws is not None]
+
+
 def _sync_game_loop(session: GameSession, inbound: Queue, outbound: Queue) -> None:
     """
     Purely synchronous game loop — runs in a thread, never touches the event loop.
@@ -106,7 +113,8 @@ async def _read_loop(ws, role: str, inbound: Queue, stop: asyncio.Event) -> None
 
 
 async def _broadcast_loop(
-    ws_slots: dict,         # {"white": ws | None, "black": ws | None}
+    ws_slots: dict,
+    viewer_wss: list | None,
     outbound: Queue,
     stop: asyncio.Event,
 ) -> None:
@@ -118,20 +126,18 @@ async def _broadcast_loop(
                 stop.set()
                 return
             encoded = encode(snap)
-            coros = [
-                ws.send(encoded)
-                for ws in ws_slots.values()
-                if ws is not None
-            ]
+            targets = _collect_ws_targets(ws_slots, viewer_wss)
+            coros = [ws.send(encoded) for ws in targets]
             if coros:
                 await asyncio.gather(*coros, return_exceptions=True)
         except Empty:
             await asyncio.sleep(0.001)
 
 
-async def _notify_both(ws_slots: dict, msg) -> None:
+async def _notify_targets(ws_slots: dict, viewer_wss: list | None, msg) -> None:
     encoded = encode(msg)
-    coros = [ws.send(encoded) for ws in ws_slots.values() if ws is not None]
+    targets = _collect_ws_targets(ws_slots, viewer_wss)
+    coros = [ws.send(encoded) for ws in targets]
     if coros:
         await asyncio.gather(*coros, return_exceptions=True)
 
@@ -140,6 +146,7 @@ async def _handle_disconnect(
     disconnected_role: str,
     opponent_role: str,
     ws_slots: dict,
+    ws_targets: list,
     inbound: Queue,
     stop: asyncio.Event,
     user_name: str,
@@ -184,6 +191,7 @@ async def _handle_disconnect(
 async def run_game(
     user_white: UserRecord, ws_white,
     user_black: UserRecord, ws_black,
+    viewer_wss: list | None = None,
 ) -> None:
     white  = Player(name=user_white.name, color=PieceColor.WHITE)
     black  = Player(name=user_black.name, color=PieceColor.BLACK)
@@ -191,6 +199,7 @@ async def run_game(
 
     # ws_slots is mutable so _broadcast_loop always uses the current connection
     ws_slots = {"white": ws_white, "black": ws_black}
+    viewer_wss = list(viewer_wss or [])
 
     try:
         await ws_white.send(encode(MatchedMsg(
@@ -210,7 +219,7 @@ async def run_game(
 
     game_future = loop.run_in_executor(_executor, _sync_game_loop, session, inbound, outbound)
     broadcast_task = asyncio.create_task(
-        _broadcast_loop(ws_slots, outbound, stop)
+        _broadcast_loop(ws_slots, viewer_wss, outbound, stop)
     )
 
     forfeit_winner: str | None = None
@@ -243,14 +252,14 @@ async def run_game(
             # connection dropped — attempt reconnect
             ws_slots[role] = None
             new_ws = await _handle_disconnect(
-                role, opponent_role, ws_slots, inbound, stop, user.name, matched_msgs[role]
+                role, opponent_role, ws_slots, ws_targets, inbound, stop, user.name, matched_msgs[role]
             )
 
             if new_ws is None:
                 # timeout — opponent wins by forfeit
                 opponent_name = (user_white if role == "black" else user_black).name
                 forfeit_winner = opponent_name
-                await _notify_both(ws_slots, ForfeitMsg(
+                await _notify_targets(ws_slots, viewer_wss, ForfeitMsg(
                     winner=opponent_name,
                     reason=f"{user.name} disconnected",
                 ))
@@ -259,7 +268,7 @@ async def run_game(
 
             # reconnected — swap in new ws and notify both players
             ws_slots[role] = new_ws
-            await _notify_both(ws_slots, ReconnectedMsg(player=user.name))
+            await _notify_targets(ws_slots, viewer_wss, ReconnectedMsg(player=user.name))
             current_ws = new_ws
 
     await asyncio.gather(

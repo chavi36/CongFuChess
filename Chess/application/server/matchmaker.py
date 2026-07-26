@@ -11,7 +11,14 @@ class Matchmaker:
     def register(self, user, ws) -> None:
         """Add a player to the waiting queue."""
         with self._lock:
-            self._waiting.append((user, ws, time.time()))
+            # avoid duplicate registration
+            if not any(e[1] is ws for e in self._waiting):
+                self._waiting.append((user, ws, time.time()))
+
+    def unregister(self, ws) -> None:
+        """Remove a player from the waiting queue."""
+        with self._lock:
+            self._waiting = [e for e in self._waiting if e[1] is not ws]
 
     def poll(self, ws) -> tuple | None:
         """
