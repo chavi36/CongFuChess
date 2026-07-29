@@ -1,6 +1,6 @@
 import unittest
-from application.kungfu_chess.model.board import TextBoard
-from application.kungfu_chess.rules.rule_engine import RuleEngine
+from Core.model.board import TextBoard
+from Core.rules.rule_engine import RuleEngine
 
 
 def _empty(size=8):

@@ -5,7 +5,7 @@ and returns the correct frame image given the current game clock.
 
 import json
 import os
-from kungfu_chess.img import Img
+from Core.img import Img
 
 
 class AnimationClock:

@@ -1,6 +1,6 @@
 import unittest
 
-from application.kungfu_chess.realtime.event_bus import EventBus
+from Core.realtime.event_bus import EventBus
 
 
 class TestEventBus(unittest.TestCase):

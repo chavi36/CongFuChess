@@ -2,9 +2,9 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from application.kungfu_chess.model.board import TextBoard
-from application.kungfu_chess.engine.game_engine import GameEngine
-from application.kungfu_chess.input.controller import Command, CommandExecutor
+from Core.model.board import TextBoard
+from Core.engine.game_engine import GameEngine
+from Core.input.controller import Command, CommandExecutor
 
 
 def _std_engine():
@@ -24,40 +24,40 @@ class TestCommandExecutor(unittest.TestCase):
         self.executor = CommandExecutor(self.engine)
 
     def test_click_selects_piece(self):
-        self.assertTrue(self.executor.execute(Command('click', row=0, col=0)))
+        self.assertTrue(self.executor.execute(Command(cmd_type='click', row=0, col=0)))
         self.assertTrue(self.engine.state.has_selected_piece())
 
     def test_click_deselects_same_piece(self):
-        self.executor.execute(Command('click', row=0, col=0))
-        self.executor.execute(Command('click', row=0, col=0))
+        self.executor.execute(Command(cmd_type='click', row=0, col=0))
+        self.executor.execute(Command(cmd_type='click', row=0, col=0))
         self.assertFalse(self.engine.state.has_selected_piece())
 
     def test_wait_advances_clock(self):
-        self.executor.execute(Command('wait', time=750))
+        self.executor.execute(Command(cmd_type='wait', time=750))
         self.assertEqual(self.engine.state.clock, 750)
 
     def test_print_outputs_board(self):
-        from application.kungfu_chess.io.board_printer import print_board
+        from Core.io.board_printer import print_board
         with patch('sys.stdout', new=StringIO()) as out:
             executor = CommandExecutor(self.engine, on_print=lambda b: print(print_board(b), flush=True))
-            executor.execute(Command('print'))
+            executor.execute(Command(cmd_type='print'))
             self.assertIn('wR', out.getvalue())
 
     def test_no_action_after_game_over(self):
         self.engine.state.end_game()
-        result = self.executor.execute(Command('click', row=0, col=0))
+        result = self.executor.execute(Command(cmd_type='click', row=0, col=0))
         self.assertFalse(result)
 
     def test_click_out_of_bounds_clears_selection(self):
         # Select a piece first
-        self.executor.execute(Command('click', row=0, col=0))
+        self.executor.execute(Command(cmd_type='click', row=0, col=0))
         self.assertTrue(self.engine.state.has_selected_piece())
         # Click way outside the board
-        self.executor.execute(Command('click', row=99, col=99))
+        self.executor.execute(Command(cmd_type='click', row=99, col=99))
         self.assertFalse(self.engine.state.has_selected_piece())
 
     def test_click_out_of_bounds_without_selection_returns_false(self):
-        result = self.executor.execute(Command('click', row=-1, col=0))
+        result = self.executor.execute(Command(cmd_type='click', row=-1, col=0))
         self.assertFalse(result)
         self.assertFalse(self.engine.state.has_selected_piece())
 
@@ -67,8 +67,8 @@ class TestCommandExecutor(unittest.TestCase):
         data[0][0] = 'wR'
         engine = GameEngine(TextBoard(data))
         executor = CommandExecutor(engine)
-        executor.execute(Command('click', row=0, col=0))   # select wR
-        executor.execute(Command('click', row=1, col=1))   # diagonal → invalid
+        executor.execute(Command(cmd_type='click', row=0, col=0))   # select wR
+        executor.execute(Command(cmd_type='click', row=1, col=1))   # diagonal → invalid
         engine.advance_time(2000)
         # piece must stay where it was
         self.assertEqual(engine.board.get_piece(0, 0), 'wR')
@@ -82,9 +82,9 @@ class TestCommandExecutor(unittest.TestCase):
         data[0][0] = 'wR'
         engine = GameEngine(TextBoard(data))
         executor = CommandExecutor(engine)
-        executor.execute(Command('click', row=0, col=0))
+        executor.execute(Command(cmd_type='click', row=0, col=0))
         self.assertTrue(engine.state.has_selected_piece())
-        executor.execute(Command('click', row=1, col=1))   # invalid for rook
+        executor.execute(Command(cmd_type='click', row=1, col=1))   # invalid for rook
         # selection cleared regardless
         self.assertFalse(engine.state.has_selected_piece())
         # but piece did not move

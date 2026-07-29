@@ -1,6 +1,6 @@
 import unittest
-from application.kungfu_chess.model.board import TextBoard
-from application.kungfu_chess.engine.game_engine import GameEngine
+from Core.model.board import TextBoard
+from Core.engine.game_engine import GameEngine
 
 
 def _empty(rows=8, cols=8):
@@ -20,7 +20,7 @@ class TestGameEngine(unittest.TestCase):
         data[3][3] = 'wK'
         engine = GameEngine(TextBoard(data))
         engine.schedule_jump(3, 3, 0)
-        engine.advance_time(1500)
+        engine.advance_time(3000)  # jump_duration = 3000 ms
         self.assertFalse(engine.state.is_source_blocked(3, 3))
 
     def test_invalid_jump_empty_square(self):
