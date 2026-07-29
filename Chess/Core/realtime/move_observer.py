@@ -29,9 +29,14 @@ class MoveObserver:
             return
         if payload.get("color") != self.color:
             return
-        self.on_move(payload.get("clock", 0), payload.get("piece", ""),
-                     payload["from"][0], payload["from"][1],
-                     payload["to"][0], payload["to"][1])
+        from_pos = payload.get("from", (0, 0))
+        to_pos   = payload.get("to",   (0, 0))
+        self.on_move(
+            payload.get("clock", 0),
+            payload.get("piece", ""),
+            from_pos[0], from_pos[1],
+            to_pos[0],   to_pos[1],
+        )
 
     def on_move(self, time_ms: int, piece_code: str,
                 from_row: int, from_col: int,

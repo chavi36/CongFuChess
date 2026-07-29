@@ -42,23 +42,18 @@ def load_from_input() -> Tuple[Optional[List[List[str]]], Optional[List[str]]]:
     return board_data, commands
 
 
-def validate_board(board_data: List[List[str]]) -> bool:
-    """Return True if board_data is structurally valid."""
+def validate_board(board_data: List[List[str]]) -> None:
+    """Raise ValueError if board_data is structurally invalid."""
     if not board_data:
-        return False
+        raise ValueError(ERROR_MESSAGES['ROW_WIDTH_MISMATCH'])
     width = len(board_data[0])
     for row in board_data:
         if len(row) != width:
-            print(ERROR_MESSAGES['ROW_WIDTH_MISMATCH'], flush=True)
-            return False
-    valid_colors = VALID_COLORS
-    valid_types  = VALID_TYPES
+            raise ValueError(ERROR_MESSAGES['ROW_WIDTH_MISMATCH'])
     for row in board_data:
         for token in row:
             if token != EMPTY_SQUARE:
                 if (len(token) != 2
-                        or token[0] not in valid_colors
-                        or token[1] not in valid_types):
-                    print(ERROR_MESSAGES['UNKNOWN_TOKEN'], flush=True)
-                    return False
-    return True
+                        or token[0] not in VALID_COLORS
+                        or token[1] not in VALID_TYPES):
+                    raise ValueError(ERROR_MESSAGES['UNKNOWN_TOKEN'])

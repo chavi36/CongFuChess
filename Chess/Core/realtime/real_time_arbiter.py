@@ -11,6 +11,7 @@ Collision handling is delegated to CollisionRules:
 """
 
 from typing import List, Optional
+from enum import Enum
 
 from Core.model.board import BoardInterface
 from Core.model.game_state import GameState
@@ -23,8 +24,10 @@ from Core.model.config import (
     CooldownKind, EventTopic,
 )
 
-_KIND_MOVE = 'move'
-_KIND_JUMP = 'jump'
+
+class _EventKind(Enum):
+    MOVE = "move"
+    JUMP = "jump"
 
 
 class RealTimeArbiter:
@@ -98,15 +101,15 @@ class RealTimeArbiter:
         pending = []
         for motion in list(self._active_moves):
             if motion.arrival_time <= target_time:
-                pending.append((_KIND_MOVE, motion.arrival_time, motion))
+                pending.append((_EventKind.MOVE, motion.arrival_time, motion))
         for jump in list(self._active_jumps):
             if jump.end_time <= target_time:
-                pending.append((_KIND_JUMP, jump.end_time, jump))
+                pending.append((_EventKind.JUMP, jump.end_time, jump))
 
         pending.sort(key=lambda x: x[1])
 
         for kind, t, event in pending:
-            if kind == _KIND_MOVE:
+            if kind == _EventKind.MOVE:
                 self._resolve_arrival(event)
                 if event in self._active_moves:
                     self._active_moves.remove(event)

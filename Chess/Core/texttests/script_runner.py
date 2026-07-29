@@ -13,6 +13,9 @@ from Core.io.board_parser import load_from_input, validate_board
 from Core.io.board_printer import print_board
 
 
+from Core.model.config import CommandType
+
+
 def _text_printer(board) -> None:
     print(print_board(board), flush=True)
 
@@ -30,17 +33,22 @@ class ScriptRunner:
         for cmd_string in commands:
             command = ScriptParser.parse(cmd_string)
             if command:
-                if command.cmd_type == 'print':
+                if command.cmd_type == CommandType.PRINT:
                     had_print = True
                 self.executor.execute(command)
         if not had_print:
-            self.executor.execute(Command(cmd_type='print'))
+            self.executor.execute(Command(cmd_type=CommandType.PRINT))
 
 
 def run_from_stdin() -> None:
     """Entry point: read board + commands from stdin and run the script."""
     board_data, commands = load_from_input()
-    if board_data is None or not validate_board(board_data):
+    if board_data is None:
+        return
+    try:
+        validate_board(board_data)
+    except ValueError as exc:
+        print(exc, flush=True)
         return
     runner = ScriptRunner(board_data)
     runner.run(commands)

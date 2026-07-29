@@ -1,9 +1,3 @@
-"""
-Rule engine for Kungfu Chess.
-Combines per-piece rules into a single is_valid_move / get_move_distance API
-consumed by the GameEngine.
-"""
-
 from Core.model.board import BoardInterface
 from Core.model.config import EMPTY_SQUARE, PieceType
 from Core.rules.piece_rules import PieceRules
@@ -15,6 +9,32 @@ class RuleEngine:
     def __init__(self, board: BoardInterface):
         self.board = board
         self._piece_rules = PieceRules(board)
+        self._validators = {
+            PieceType.PAWN.value:   self._validate_pawn,
+            PieceType.KNIGHT.value: self._validate_knight,
+            PieceType.KING.value:   self._validate_king,
+            PieceType.ROOK.value:   self._validate_rook,
+            PieceType.BISHOP.value: self._validate_bishop,
+            PieceType.QUEEN.value:  self._validate_queen,
+        }
+
+    def _validate_pawn(self, from_row, from_col, to_row, to_col, piece_color):
+        return self._piece_rules.is_valid_pawn_move(from_row, from_col, to_row, to_col, piece_color)
+
+    def _validate_knight(self, from_row, from_col, to_row, to_col, _color):
+        return self._piece_rules.is_valid_knight_move(from_row, from_col, to_row, to_col)
+
+    def _validate_king(self, from_row, from_col, to_row, to_col, _color):
+        return self._piece_rules.is_valid_king_move(from_row, from_col, to_row, to_col)
+
+    def _validate_rook(self, from_row, from_col, to_row, to_col, _color):
+        return self._piece_rules.is_valid_rook_move(from_row, from_col, to_row, to_col)
+
+    def _validate_bishop(self, from_row, from_col, to_row, to_col, _color):
+        return self._piece_rules.is_valid_bishop_move(from_row, from_col, to_row, to_col)
+
+    def _validate_queen(self, from_row, from_col, to_row, to_col, _color):
+        return self._piece_rules.is_valid_queen_move(from_row, from_col, to_row, to_col)
 
     def is_valid_move(self, from_row: int, from_col: int,
                       to_row: int, to_col: int) -> bool:
@@ -23,28 +43,16 @@ class RuleEngine:
             return False
 
         piece_color = piece_code[0]
-        piece_type = piece_code[1]
+        piece_type  = piece_code[1]
 
         target = self.board.get_piece(to_row, to_col)
         if target != EMPTY_SQUARE and target[0] == piece_color:
             return False
 
-        if piece_type == PieceType.PAWN.value:
-            return self._piece_rules.is_valid_pawn_move(
-                from_row, from_col, to_row, to_col, piece_color)
-        if piece_type == PieceType.KNIGHT.value:
-            return self._piece_rules.is_valid_knight_move(
-                from_row, from_col, to_row, to_col)
-        if piece_type == PieceType.KING.value:
-            return self._piece_rules.is_valid_king_move(from_row, from_col, to_row, to_col)
-        if piece_type == PieceType.ROOK.value:
-            return self._piece_rules.is_valid_rook_move(from_row, from_col, to_row, to_col)
-        if piece_type == PieceType.BISHOP.value:
-            return self._piece_rules.is_valid_bishop_move(from_row, from_col, to_row, to_col)
-        if piece_type == PieceType.QUEEN.value:
-            return self._piece_rules.is_valid_queen_move(from_row, from_col, to_row, to_col)
-
-        return False
+        validator = self._validators.get(piece_type)
+        if validator is None:
+            return False
+        return validator(from_row, from_col, to_row, to_col, piece_color)
 
     def get_move_distance(self, from_row: int, from_col: int,
                           to_row: int, to_col: int) -> int:

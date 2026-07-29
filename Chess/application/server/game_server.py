@@ -71,10 +71,14 @@ def _sync_game_loop(session: GameSession, inbound: Queue, outbound: Queue) -> No
                 if action is None:      # shutdown signal
                     return
                 role = action.get("role")
-                if action["type"] == CommandType.CLICK:
-                    session.click_as(role, action["row"], action["col"])
-                elif action["type"] == CommandType.JUMP:
-                    session.jump_as(role, action["row"], action["col"])
+                action_type = action.get("type")
+                try:
+                    if action_type == CommandType.CLICK:
+                        session.click_as(role, action.get("row"), action.get("col"))
+                    elif action_type == CommandType.JUMP:
+                        session.jump_as(role, action.get("row"), action.get("col"))
+                except PermissionError:
+                    pass  # viewer attempted a write action — silently ignore
             except Empty:
                 break
 

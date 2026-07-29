@@ -8,25 +8,26 @@ from Core.io.board_parser import validate_board, load_from_input
 class TestValidateBoard(unittest.TestCase):
     def test_valid_board(self):
         data = [['wK', '.', 'bK'], ['.', '.', '.']]
-        self.assertTrue(validate_board(data))
+        validate_board(data)  # should not raise
 
     def test_empty_board(self):
-        self.assertFalse(validate_board([]))
+        with self.assertRaises(ValueError):
+            validate_board([])
 
     def test_row_width_mismatch(self):
         data = [['wK', 'bK'], ['.']]
-        with patch('sys.stdout', new=StringIO()):
-            self.assertFalse(validate_board(data))
+        with self.assertRaises(ValueError):
+            validate_board(data)
 
     def test_unknown_token(self):
         data = [['XX']]
-        with patch('sys.stdout', new=StringIO()):
-            self.assertFalse(validate_board(data))
+        with self.assertRaises(ValueError):
+            validate_board(data)
 
     def test_invalid_color(self):
         data = [['xK']]
-        with patch('sys.stdout', new=StringIO()):
-            self.assertFalse(validate_board(data))
+        with self.assertRaises(ValueError):
+            validate_board(data)
 
 
 class TestLoadFromInput(unittest.TestCase):

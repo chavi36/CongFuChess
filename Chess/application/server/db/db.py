@@ -66,61 +66,55 @@ class UserRecord:
     range: int
 
 
-def get_connection(path: str = DB_PATH) -> sqlite3.Connection:
-    return sqlite3.connect(path)
-
-
 def init_db(path: str = DB_PATH) -> None:
-    conn = get_connection(path)
-    conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS users (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            name     TEXT    NOT NULL UNIQUE,
-            password TEXT    NOT NULL,
-            range    INTEGER NOT NULL DEFAULT {ELO_DEFAULT}
+    with sqlite3.connect(path) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                name     TEXT    NOT NULL UNIQUE,
+                password TEXT    NOT NULL,
+                range    INTEGER NOT NULL DEFAULT ?
+            )
+        """, (ELO_DEFAULT,))
+        conn.commit()
+
+
+def add_user(name: str, password: str, elo: int = ELO_DEFAULT, path: str = DB_PATH) -> None:
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "INSERT INTO users (name, password, range) VALUES (?, ?, ?)",
+            (name, password, elo),
         )
-    """)
-    conn.commit()
-    conn.close()
-
-
-def add_user(name: str, password: str, range: int = ELO_DEFAULT, path: str = DB_PATH) -> None:
-    conn = get_connection(path)
-    conn.execute("INSERT INTO users (name, password, range) VALUES (?, ?, ?)", (name, password, range))
-    conn.commit()
-    conn.close()
+        conn.commit()
 
 
 def get_user(name: str, path: str = DB_PATH) -> UserRecord | None:
-    conn = get_connection(path)
-    cur  = conn.execute("SELECT id, name, password, range FROM users WHERE name = ?", (name,))
-    row  = cur.fetchone()
-    conn.close()
+    with sqlite3.connect(path) as conn:
+        cur = conn.execute(
+            "SELECT id, name, password, range FROM users WHERE name = ?", (name,)
+        )
+        row = cur.fetchone()
     return UserRecord(id=row[0], name=row[1], password=row[2], range=row[3]) if row else None
 
 
 def update_range(name: str, new_range: int, path: str = DB_PATH) -> None:
-    conn = get_connection(path)
-    conn.execute("UPDATE users SET range = ? WHERE name = ?", (new_range, name))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(path) as conn:
+        conn.execute("UPDATE users SET range = ? WHERE name = ?", (new_range, name))
+        conn.commit()
 
 
 def authenticate(name: str, password: str) -> UserRecord | None:
     """
     Authenticate user:
     - If user does not exist, register them automatically.
-    - If user exists, verify that the password matches. Return None if it doesn't.
+    - If user exists, verify that the password matches. Raises ValueError if it doesn't.
     """
     user = get_user(name)
-    
     if user is None:
-        add_user(name, password, range=ELO_DEFAULT)
+        add_user(name, password, elo=ELO_DEFAULT)
         return get_user(name)
-        
     if user.password != password:
-        return None 
-        
+        raise ValueError("invalid credentials")
     return user
 
 
@@ -140,10 +134,9 @@ def update_after_game(winner_name: str, winner_range: int,
 
 def get_leaderboard(n: int = 10, path: str = DB_PATH) -> list:
     """Return the top-n players by ELO as list of (name, range) tuples."""
-    conn = get_connection(path)
-    cur  = conn.execute(
-        "SELECT name, range FROM users ORDER BY range DESC LIMIT ?", (n,)
-    )
-    rows = cur.fetchall()
-    conn.close()
+    with sqlite3.connect(path) as conn:
+        cur = conn.execute(
+            "SELECT name, range FROM users ORDER BY range DESC LIMIT ?", (n,)
+        )
+        rows = cur.fetchall()
     return [(row[0], row[1]) for row in rows]

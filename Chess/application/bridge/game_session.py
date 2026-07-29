@@ -70,12 +70,10 @@ class GameSession:
         """Click enforcing piece ownership — role is 'white' or 'black'."""
         color = _PIECE_COLOR_FOR_ROLE.get(role)
         if color is None:
-            return False  # viewer: no write access
+            raise PermissionError(f"Role '{role}' has no write access")
         piece = self.engine.board.get_piece(row, col)
-        # Allow clicking empty squares only when a piece is already selected
         from Core.model.config import EMPTY_SQUARE
         if piece != EMPTY_SQUARE and piece[0] != color:
-            # Trying to select an enemy piece — only allowed as a move target
             if not self.engine.state.has_selected_piece():
                 return False
             selected = self.engine.state.selected_piece
@@ -87,7 +85,7 @@ class GameSession:
         """Jump enforcing piece ownership — role is 'white' or 'black'."""
         color = _PIECE_COLOR_FOR_ROLE.get(role)
         if color is None:
-            return False  # viewer: no write access
+            raise PermissionError(f"Role '{role}' has no write access")
         piece = self.engine.board.get_piece(row, col)
         from Core.model.config import EMPTY_SQUARE
         if piece == EMPTY_SQUARE or piece[0] != color:
