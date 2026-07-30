@@ -1,4 +1,4 @@
-from application.server.game_server import _collect_ws_targets
+from services.game_node.game_server import _collect_ws_targets
 
 
 class DummySocket:

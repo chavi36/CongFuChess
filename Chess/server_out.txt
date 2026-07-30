@@ -1,0 +1,62 @@
+ERROR:services.edge_gateway.server:Unhandled error in client handler
+Traceback (most recent call last):
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\edge_gateway\server.py", line 253, in _handle_client
+    await handler(ws_conn, user, menu_msg)
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\edge_gateway\server.py", line 106, in _handle_match
+    get_event_bus().publish(COMMAND_SUBJECT, {
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\shared\events\bus.py", line 36, in publish
+    handler(message)
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\matchmaker\service.py", line 33, in _handle_command
+    if user_a["range"] >= user_b["range"]:
+       ~~~~~~^^^^^^^^^
+TypeError: 'UserRecord' object is not subscriptable
+ERROR:services.edge_gateway.server:Unhandled error in client handler
+Traceback (most recent call last):
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\edge_gateway\server.py", line 253, in _handle_client
+    await handler(ws_conn, user, menu_msg)
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\edge_gateway\server.py", line 106, in _handle_match
+    get_event_bus().publish(COMMAND_SUBJECT, {
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\shared\events\bus.py", line 36, in publish
+    handler(message)
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\matchmaker\service.py", line 33, in _handle_command
+    if user_a["range"] >= user_b["range"]:
+       ~~~~~~^^^^^^^^^
+TypeError: 'UserRecord' object is not subscriptable
+ERROR:services.edge_gateway.server:Unhandled error in client handler
+Traceback (most recent call last):
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\edge_gateway\server.py", line 253, in _handle_client
+    await handler(ws_conn, user, menu_msg)
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\edge_gateway\server.py", line 106, in _handle_match
+    get_event_bus().publish(COMMAND_SUBJECT, {
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\shared\events\bus.py", line 36, in publish
+    handler(message)
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\matchmaker\service.py", line 33, in _handle_command
+    ws_ref = command.get("ws_ref")
+       ^^^^^^^^^^^^^^^
+TypeError: 'UserRecord' object is not subscriptable
+ERROR:services.edge_gateway.server:Unhandled error in client handler
+Traceback (most recent call last):
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\edge_gateway\server.py", line 253, in _handle_client
+    raw = await ws_conn.recv()
+            ^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\edge_gateway\server.py", line 106, in _handle_match
+    get_event_bus().publish(COMMAND_SUBJECT, {
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\shared\events\bus.py", line 36, in publish
+    handler(message)
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\matchmaker\service.py", line 33, in _handle_command
+    ws_ref = command.get("ws_ref")
+       ^^^^^^^^^^^^^^^
+TypeError: 'UserRecord' object is not subscriptable
+ERROR:services.edge_gateway.server:Unhandled error in client handler
+Traceback (most recent call last):
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\edge_gateway\server.py", line 253, in _handle_client
+    try:
+         
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\edge_gateway\server.py", line 106, in _handle_match
+    get_event_bus().publish(COMMAND_SUBJECT, {
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\shared\events\bus.py", line 36, in publish
+    handler(message)
+  File "c:\Users\user1\Downloads\another try\CongFuChess\Chess\services\matchmaker\service.py", line 33, in _handle_command
+    ws_ref = command.get("ws_ref")
+       ^^^^^^^^^^^^^^^
+TypeError: 'UserRecord' object is not subscriptable

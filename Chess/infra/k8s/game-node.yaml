@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: game-node
+  labels:
+    app: game-node
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: game-node
+  template:
+    metadata:
+      labels:
+        app: game-node
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: game-node
+      terminationGracePeriodSeconds: 165
+      containers:
+        - name: game-node
+          image: kungfu-chess/game-node:latest
+          env:
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: url
+            - name: SHARDS
+              value: "4"
+          ports:
+            - containerPort: 9100
+              name: metrics
+          lifecycle:
+            preStop:
+              exec:
+                # Signal drain: refuse new games, finish existing ones (150 s budget)
+                command: ["/bin/sh", "-c", "kill -SIGTERM 1 && sleep 150"]
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9100
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "128Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"

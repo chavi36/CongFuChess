@@ -137,7 +137,7 @@ ELO_K_FACTOR = 32
 ELO_DIVISOR  = 400
 
 # ========== RECONNECTION ==========
-RECONNECT_TIMEOUT_S = 60   # seconds a disconnected player has to reconnect
+RECONNECT_TIMEOUT_S = 10   # seconds a disconnected player has to reconnect
 
 # ========== DATABASE ==========
 DB_FILENAME = "kungfu_chess.db"

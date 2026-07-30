@@ -3,13 +3,16 @@ game_server.py — runs one GameSession between two connected WebSocket clients.
 
 - Each player can only move their own pieces (enforced via GameSession.click_as/jump_as).
 - Viewers receive snapshots but all their actions are silently ignored.
-- On disconnect, the opponent is notified and the player has RECONNECT_TIMEOUT_S to reconnect.
-- On timeout, the opponent wins by forfeit and both connections are closed.
+- On disconnect the game PAUSES (sync loop stops ticking) and the opponent sees a countdown.
+- The disconnected player has RECONNECT_TIMEOUT_S (10 s) to reconnect.
+- On reconnect: MatchedMsg is resent so the client rebuilds its GUI, game resumes.
+- On timeout: opponent wins by forfeit, GameOverMsg sent to all.
 """
 
 import asyncio
 import os
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from queue import Queue, Empty
@@ -17,8 +20,10 @@ from queue import Queue, Empty
 from application.bridge.game_session import GameSession
 from Core.model.config import PieceColor, RECONNECT_TIMEOUT_S
 from Core.model.player import Player
-from application.server.db.db import UserRecord, update_after_game, compute_elo
-from application.server.protocol import (
+from services.auth import UserRecord, update_after_game, compute_elo
+from services.spectator_relay import relay_frame
+from services.result_writer import write_result
+from shared.protocol import (
     encode, decode_client_msg,
     MatchedMsg, SnapshotMsg, DisconnectedMsg, ReconnectedMsg, ForfeitMsg, GameOverMsg,
 )
@@ -31,7 +36,6 @@ BOARD_CSV = os.path.join(resolve_pieces_dir(__file__), "pieces1", "board.csv")
 _executor = ThreadPoolExecutor(max_workers=4)
 
 # Registry: username -> (asyncio.Queue, MatchedMsg, asyncio.Future)
-# Queue receives the new ws; Future is resolved when the game session ends.
 _reconnect_registry: dict = {}
 
 
@@ -51,20 +55,20 @@ def _snapshot_msg(session: GameSession) -> SnapshotMsg:
     )
 
 
-def _collect_ws_targets(ws_slots: dict, viewer_wss: list | None = None) -> list:
-    targets = [ws_slots.get("white"), ws_slots.get("black")]
-    if viewer_wss:
-        targets.extend(list(viewer_wss))
+def _collect_ws_targets(ws_slots: dict, viewer_wss: list) -> list:
+    targets = [ws_slots.get("white"), ws_slots.get("black")] + list(viewer_wss)
     return [ws for ws in targets if ws is not None]
 
 
-def _sync_game_loop(session: GameSession, inbound: Queue, outbound: Queue) -> None:
+def _sync_game_loop(session: GameSession, inbound: Queue, outbound: Queue,
+                    paused: list) -> None:
     """
-    Purely synchronous game loop — runs in a thread, never touches the event loop.
-    Each action carries a 'role' ('white'|'black') so GameSession can enforce ownership.
+    Synchronous game loop in a thread.
+    paused is a one-element list used as a mutable flag: paused[0] = True freezes ticking.
     """
     last_tick = time.monotonic()
     while True:
+        # drain inbound actions
         while True:
             try:
                 action = inbound.get_nowait()
@@ -78,9 +82,15 @@ def _sync_game_loop(session: GameSession, inbound: Queue, outbound: Queue) -> No
                     elif action_type == CommandType.JUMP:
                         session.jump_as(role, action.get("row"), action.get("col"))
                 except PermissionError:
-                    pass  # viewer attempted a write action — silently ignore
+                    pass
             except Empty:
                 break
+
+        if paused[0]:
+            # game is frozen — don't tick, but keep the thread alive
+            time.sleep(0.01)
+            last_tick = time.monotonic()  # reset so we don't burst on resume
+            continue
 
         now = time.monotonic()
         elapsed = int((now - last_tick) * 1000)
@@ -96,33 +106,29 @@ def _sync_game_loop(session: GameSession, inbound: Queue, outbound: Queue) -> No
 
 
 async def _read_loop(ws, role: str, inbound: Queue, stop: asyncio.Event) -> None:
-    """Reads from one player's WebSocket and tags every action with their role."""
+    """Reads from one WebSocket and pushes actions into inbound queue."""
     try:
         async for raw in ws:
             if stop.is_set():
                 return
             try:
-                msg = decode_client_msg(raw)
-                inbound.put({
-                    "type": msg.type,
-                    "role": role,
-                    "row":  getattr(msg, "row", None),
-                    "col":  getattr(msg, "col", None),
-                })
+                msg = decode_client_msg(raw)   # returns a dict
+                action_type = msg.get("type")
+                if action_type in (CommandType.CLICK, CommandType.JUMP):
+                    inbound.put({
+                        "type": action_type,
+                        "role": role,
+                        "row":  msg.get("row"),
+                        "col":  msg.get("col"),
+                    })
             except Exception:
                 continue
     except Exception:
         pass
-    # NOTE: do NOT set stop here — a single disconnect should not tear down the game
 
 
-async def _broadcast_loop(
-    ws_slots: dict,
-    viewer_wss: list | None,
-    outbound: Queue,
-    stop: asyncio.Event,
-) -> None:
-    """Drains outbound snapshots and sends to whichever connections are currently live."""
+async def _broadcast_loop(ws_slots: dict, viewer_wss: list,
+                          outbound: Queue, stop: asyncio.Event) -> None:
     while not stop.is_set():
         try:
             snap = outbound.get_nowait()
@@ -130,39 +136,40 @@ async def _broadcast_loop(
                 stop.set()
                 return
             encoded = encode(snap)
+            relay_frame(asdict(snap))
             targets = _collect_ws_targets(ws_slots, viewer_wss)
-            coros = [ws.send(encoded) for ws in targets]
-            if coros:
-                await asyncio.gather(*coros, return_exceptions=True)
+            if targets:
+                await asyncio.gather(*[ws.send(encoded) for ws in targets],
+                                     return_exceptions=True)
         except Empty:
             await asyncio.sleep(0.001)
 
 
-async def _notify_targets(ws_slots: dict, viewer_wss: list | None, msg) -> None:
+async def _notify_targets(ws_slots: dict, viewer_wss: list, msg) -> None:
     encoded = encode(msg)
     targets = _collect_ws_targets(ws_slots, viewer_wss)
-    coros = [ws.send(encoded) for ws in targets]
-    if coros:
-        await asyncio.gather(*coros, return_exceptions=True)
+    if targets:
+        await asyncio.gather(*[ws.send(encoded) for ws in targets],
+                             return_exceptions=True)
 
 
 async def _handle_disconnect(
-    disconnected_role: str,
+    role: str,
     opponent_role: str,
     ws_slots: dict,
-    ws_targets: list,
-    inbound: Queue,
+    viewer_wss: list,
+    paused: list,
     stop: asyncio.Event,
     user_name: str,
     matched_msg: MatchedMsg,
-) -> str | None:
+) -> object:
     """
-    Notifies the opponent, waits up to RECONNECT_TIMEOUT_S for the player to reconnect.
-    Returns the new ws if reconnected, or None on timeout.
-    Sends countdown updates every second.
+    Freeze the game, notify opponent with countdown every second.
+    Returns new_ws if player reconnects within RECONNECT_TIMEOUT_S, else None.
     """
+    paused[0] = True
     reconnect_queue: asyncio.Queue = asyncio.Queue()
-    done_future: asyncio.Future = asyncio.get_event_loop().create_future()
+    done_future = asyncio.get_running_loop().create_future()
     _reconnect_registry[user_name] = (reconnect_queue, matched_msg, done_future)
 
     try:
@@ -172,11 +179,20 @@ async def _handle_disconnect(
             if remaining <= 0:
                 return None
 
-            # notify opponent of countdown
             opp_ws = ws_slots.get(opponent_role)
             if opp_ws:
                 try:
                     await opp_ws.send(encode(DisconnectedMsg(
+                        player=user_name,
+                        seconds_remaining=remaining,
+                    )))
+                except Exception:
+                    pass
+
+            # also notify viewers
+            for vws in list(viewer_wss):
+                try:
+                    await vws.send(encode(DisconnectedMsg(
                         player=user_name,
                         seconds_remaining=remaining,
                     )))
@@ -190,6 +206,7 @@ async def _handle_disconnect(
                 continue
     finally:
         _reconnect_registry.pop(user_name, None)
+        paused[0] = False   # resume whether reconnected or forfeited
 
 
 async def run_game(
@@ -197,14 +214,16 @@ async def run_game(
     user_black: UserRecord, ws_black,
     viewer_wss: list | None = None,
 ) -> None:
-    white  = Player(name=user_white.name, color=PieceColor.WHITE)
-    black  = Player(name=user_black.name, color=PieceColor.BLACK)
+    game_id = str(uuid.uuid4())
+    white   = Player(name=user_white.name, color=PieceColor.WHITE)
+    black   = Player(name=user_black.name, color=PieceColor.BLACK)
     session = GameSession(BOARD_CSV, white, black)
 
-    # ws_slots is mutable so _broadcast_loop always uses the current connection
-    ws_slots = {"white": ws_white, "black": ws_black}
+    ws_slots   = {"white": ws_white, "black": ws_black}
     viewer_wss = list(viewer_wss or [])
+    paused     = [False]   # mutable flag shared with sync thread
 
+    # Send MatchedMsg to both players and all viewers
     try:
         await ws_white.send(encode(MatchedMsg(
             color="white", opponent=user_black.name, opponent_range=user_black.range
@@ -212,6 +231,13 @@ async def run_game(
         await ws_black.send(encode(MatchedMsg(
             color="black", opponent=user_white.name, opponent_range=user_white.range
         )))
+        for vws in viewer_wss:
+            try:
+                await vws.send(encode(MatchedMsg(
+                    color="white", opponent=user_black.name, opponent_range=user_black.range
+                )))
+            except Exception:
+                pass
     except Exception as e:
         print(f"[game_server] Failed to send match messages: {e}")
         return
@@ -221,7 +247,7 @@ async def run_game(
     stop      = asyncio.Event()
     loop      = asyncio.get_running_loop()
 
-    game_future = loop.run_in_executor(_executor, _sync_game_loop, session, inbound, outbound)
+    game_future    = loop.run_in_executor(_executor, _sync_game_loop, session, inbound, outbound, paused)
     broadcast_task = asyncio.create_task(
         _broadcast_loop(ws_slots, viewer_wss, outbound, stop)
     )
@@ -234,33 +260,28 @@ async def run_game(
 
     async def player_lifecycle(role: str, user: UserRecord, initial_ws) -> None:
         nonlocal forfeit_winner
-        current_ws = initial_ws
+        current_ws    = initial_ws
         opponent_role = "black" if role == "white" else "white"
 
         while not stop.is_set():
-            read_task   = asyncio.ensure_future(_read_loop(current_ws, role, inbound, stop))
-            stop_task   = asyncio.ensure_future(stop.wait())
-            done, _     = await asyncio.wait(
-                {read_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
-            )
+            read_task = asyncio.ensure_future(_read_loop(current_ws, role, inbound, stop))
+            stop_task = asyncio.ensure_future(stop.wait())
+            await asyncio.wait({read_task, stop_task}, return_when=asyncio.FIRST_COMPLETED)
             read_task.cancel()
             stop_task.cancel()
 
-            if stop.is_set():
+            if stop.is_set() or session.is_over():
                 break
 
-            # if game ended naturally, don't treat the closing ws as a disconnect
-            if session.is_over():
-                break
-
-            # connection dropped — attempt reconnect
+            # connection dropped — freeze game and wait for reconnect
             ws_slots[role] = None
             new_ws = await _handle_disconnect(
-                role, opponent_role, ws_slots, ws_targets, inbound, stop, user.name, matched_msgs[role]
+                role, opponent_role, ws_slots, viewer_wss,
+                paused, stop, user.name, matched_msgs[role],
             )
 
             if new_ws is None:
-                # timeout — opponent wins by forfeit
+                # timeout — forfeit
                 opponent_name = (user_white if role == "black" else user_black).name
                 forfeit_winner = opponent_name
                 await _notify_targets(ws_slots, viewer_wss, ForfeitMsg(
@@ -270,8 +291,12 @@ async def run_game(
                 stop.set()
                 break
 
-            # reconnected — swap in new ws and notify both players
+            # reconnected — resend MatchedMsg so client rebuilds GUI, then resume
             ws_slots[role] = new_ws
+            try:
+                await new_ws.send(encode(matched_msgs[role]))
+            except Exception:
+                pass
             await _notify_targets(ws_slots, viewer_wss, ReconnectedMsg(player=user.name))
             current_ws = new_ws
 
@@ -284,7 +309,7 @@ async def run_game(
     await game_future
     broadcast_task.cancel()
 
-    # resolve any pending reconnect futures so server.py can release those ws connections
+    # resolve pending reconnect futures
     for name in (user_white.name, user_black.name):
         entry = _reconnect_registry.pop(name, None)
         if entry:
@@ -298,6 +323,11 @@ async def run_game(
         loser_rec  = user_black if winner_name == user_white.name else user_white
         update_after_game(winner_rec.name, winner_rec.range, loser_rec.name, loser_rec.range)
         new_winner_elo, new_loser_elo = compute_elo(winner_rec.range, loser_rec.range)
+        write_result(game_id, {
+            "winner": winner_name,
+            "white":  {"name": user_white.name, "range": user_white.range},
+            "black":  {"name": user_black.name, "range": user_black.range},
+        })
         for role, user_rec in (("white", user_white), ("black", user_black)):
             ws = ws_slots.get(role)
             if ws:
@@ -310,9 +340,9 @@ async def run_game(
 
 async def handle_reconnect(user_name: str, new_ws) -> asyncio.Future | None:
     """
-    Called by server.py when a logged-in user reconnects.
-    Sends MatchedMsg so the client can rebuild its GUI, then hands ws to the game.
-    Returns a Future to await (keeps ws alive) or None if not reconnecting.
+    Called by server.py when a logged-in user sends 'match' and is in the reconnect registry.
+    Sends MatchedMsg so the client rebuilds its GUI, hands ws to the game.
+    Returns a Future to await (keeps the ws alive) or None if not reconnecting.
     """
     entry = _reconnect_registry.get(user_name)
     if entry is None:

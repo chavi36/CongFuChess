@@ -1,0 +1,204 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-gateway
+  labels:
+    app: edge-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: edge-gateway
+  template:
+    metadata:
+      labels:
+        app: edge-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: edge-gateway
+      containers:
+        - name: edge-gateway
+          image: kungfu-chess/python-services:latest
+          command: ["python", "-m", "services.edge_gateway.main"]
+          env:
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: url
+          ports:
+            - containerPort: 8081
+              name: ws
+            - containerPort: 9100
+              name: metrics
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matchmaker
+  labels:
+    app: matchmaker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: matchmaker
+  template:
+    metadata:
+      labels:
+        app: matchmaker
+    spec:
+      containers:
+        - name: matchmaker
+          image: kungfu-chess/python-services:latest
+          command: ["python", "-m", "services.matchmaker.service"]
+          env:
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: url
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: allocator
+  labels:
+    app: allocator
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: allocator
+  template:
+    metadata:
+      labels:
+        app: allocator
+    spec:
+      containers:
+        - name: allocator
+          image: kungfu-chess/python-services:latest
+          command: ["python", "-m", "services.allocator.main"]
+          env:
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: url
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spectator-relay
+  labels:
+    app: spectator-relay
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spectator-relay
+  template:
+    metadata:
+      labels:
+        app: spectator-relay
+    spec:
+      containers:
+        - name: spectator-relay
+          image: kungfu-chess/python-services:latest
+          command: ["python", "-m", "services.spectator_relay.main"]
+          env:
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: url
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: result-writer
+  labels:
+    app: result-writer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: result-writer
+  template:
+    metadata:
+      labels:
+        app: result-writer
+    spec:
+      containers:
+        - name: result-writer
+          image: kungfu-chess/python-services:latest
+          command: ["python", "-m", "services.result_writer.main"]
+          env:
+            - name: NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: url
+            - name: DB_FILENAME
+              value: "/data/kungfu_chess.db"
+          volumeMounts:
+            - name: db-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: db-pvc

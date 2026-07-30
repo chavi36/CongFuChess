@@ -1,0 +1,9 @@
+FROM golang:1.22-alpine AS builder
+WORKDIR /src
+COPY Chess/services/game_node/main.go .
+RUN go build -o game-node .
+
+FROM alpine:3.19
+WORKDIR /app
+COPY --from=builder /src/game-node .
+ENTRYPOINT ["./game-node"]

@@ -381,7 +381,6 @@
 
 
 import os
-import sys
 import asyncio
 import threading
 import numpy as np
@@ -391,21 +390,14 @@ from concurrent.futures import Future
 import cv2
 import websockets
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
-from application.server.protocol import encode, decode, MenuChoiceMsg
+from shared.protocol import encode, decode, MenuChoiceMsg
 from application.gui.gui_controller import GUIController
 from application.gui.animated_renderer import AnimatedRenderer
 from application.gui.move_log_panel import (
     draw_move_log, draw_board_labels, draw_leaderboard, PANEL_W,
 )
 from application.path_utils import resolve_pieces_dir, resolve_board_image
-try:
-    from .menu_state import MenuState
-except ImportError:
-    from menu_state import MenuState
+from client.menu_state import MenuState
 from Core.model.config import (
     MsgType, GUI_WINDOW_W, GUI_WINDOW_H, GUI_BOARD_SIZE,
     BOARD_ROWS, BOARD_COLS,
@@ -453,83 +445,89 @@ class GameClient:
         self._forfeit_info: dict | None = None
         self._server_gone: bool = False
         self._game_over_info: dict | None = None
+        # last login error string for UI feedback
+        self._last_login_error: str | None = None
 
     async def _connect_and_run(self, username: str, password: str, uri: str | None = None) -> None:
         uri = uri or self.uri
         try:
             async with websockets.connect(uri) as ws:
-                # התחברות לשרת
+                # send login request
                 await ws.send(encode({"type": MsgType.LOGIN, "name": username, "password": password}))
-                
-                # קבלת תשובת התחברות ראשונית
-                raw_resp = await ws.recv()
-                init_msg = decode(raw_resp)
-                if init_msg.get("type") == MsgType.OK:
-                    with self._lock:
-                        self._my_elo = init_msg.get("range")
-                    self._login_result.set_result(init_msg)
-                else:
-                    self._login_result.set_result(init_msg)
-                    return
 
-                # לולאת תקשורת ראשית מול השרת
+                # main communication loop: regularly attempt to recv (with short timeout)
+                # and always drain outbound queue so actions are sent even if no incoming
+                # messages arrive for a while.
                 while True:
-                    # שליחת הודעות יוצאות מהתור
+                    # send any queued outbound messages
                     while not self._outbound.empty():
                         msg_to_send = self._outbound.get_nowait()
                         await ws.send(encode(msg_to_send))
 
-                    # קבלת הודעות מהשרת בצורה לא חוסמת (או עם טיימאאוט קצר)
                     try:
                         raw = await asyncio.wait_for(ws.recv(), timeout=0.05)
-                        msg = decode(raw)
-                        msg_type = msg.get("type")
-
-                        if msg_type == MsgType.LEADERBOARD:
-                            with self._lock:
-                                self._leaderboard = msg.get("entries", [])
-
-                        elif msg_type == MsgType.MATCHED:
-                            with self._lock:
-                                self._matched_info = msg
-
-                        elif msg_type == MsgType.SNAPSHOT:
-                            self._ingest_snapshot(msg)
-
-                        elif msg_type == MsgType.DISCONNECTED:
-                            with self._lock:
-                                self._disconnected_player  = msg.get("player")
-                                self._disconnected_seconds = msg.get("seconds_remaining", 0)
-
-                        elif msg_type == MsgType.RECONNECTED:
-                            with self._lock:
-                                self._disconnected_player  = None
-                                self._disconnected_seconds = 0
-
-                        elif msg_type == MsgType.FORFEIT:
-                            with self._lock:
-                                self._forfeit_info = {
-                                    "winner": msg.get("winner"),
-                                    "reason": msg.get("reason", ""),
-                                }
-
-                        elif msg_type == MsgType.GAME_OVER:
-                            with self._lock:
-                                self._game_over_info = {
-                                    "winner": msg.get("winner"),
-                                    "new_elo": msg.get("new_elo"),
-                                }
-                        
-                        elif msg_type == MsgType.OK:
-                            # room creation / join confirmation — store room_id only
-                            with self._lock:
-                                if msg.get("room_id"):
-                                    self._created_room_id = msg.get("room_id")
-
                     except asyncio.TimeoutError:
+                        # no incoming message right now; loop to drain outbound again
                         continue
                     except websockets.exceptions.ConnectionClosed:
                         break
+
+                    msg = decode(raw)
+                    msg_type = msg.get("type")
+
+                    # handle login confirmation or error at any time
+                    if msg_type == MsgType.OK:
+                        if not self._login_result.done():
+                            with self._lock:
+                                self._my_elo = msg.get("range")
+                            self._login_result.set_result(msg)
+                        # OK may carry room_id at any point (create_room response)
+                        if msg.get("room_id"):
+                            with self._lock:
+                                self._created_room_id = msg.get("room_id")
+                        continue
+
+                    if msg_type == MsgType.ERROR and not self._login_result.done():
+                        self._login_result.set_result(msg)
+                        continue
+
+                    if msg_type == MsgType.LEADERBOARD:
+                        with self._lock:
+                            self._leaderboard = msg.get("entries", [])
+
+                    elif msg_type == MsgType.MATCHED:
+                        # if server matched us as part of login flow, mark login OK
+                        if not self._login_result.done():
+                            self._login_result.set_result({"type": MsgType.OK})
+                        with self._lock:
+                            self._matched_info = msg
+
+                    elif msg_type == MsgType.SNAPSHOT:
+                        self._ingest_snapshot(msg)
+
+                    elif msg_type == MsgType.DISCONNECTED:
+                        with self._lock:
+                            self._disconnected_player  = msg.get("player")
+                            self._disconnected_seconds = msg.get("seconds_remaining", 0)
+
+                    elif msg_type == MsgType.RECONNECTED:
+                        with self._lock:
+                            self._disconnected_player  = None
+                            self._disconnected_seconds = 0
+
+                    elif msg_type == MsgType.FORFEIT:
+                        with self._lock:
+                            self._forfeit_info = {
+                                "winner": msg.get("winner"),
+                                "reason": msg.get("reason", ""),
+                            }
+
+                    elif msg_type == MsgType.GAME_OVER:
+                        with self._lock:
+                            self._game_over_info = {
+                                "winner": msg.get("winner"),
+                                "new_elo": msg.get("new_elo"),
+                            }
 
         except Exception as e:
             print(f"[client network error]: {e}")
@@ -748,6 +746,8 @@ def _draw_login_screen(canvas, username, password, username_active):
     cv2.putText(canvas, "Tab to switch fields, Enter to login, ESC to exit.",
                 (GUI_WINDOW_W // 2 - 240, 510), font, 0.5, (180, 180, 180), 1)
 
+    # Note: the main loop can overlay `client._last_login_error` after calling this
+
 
 def main():
     client = GameClient()
@@ -782,6 +782,12 @@ def main():
 
             if current_state == "LOGIN":
                 _draw_login_screen(canvas, username, password, username_active)
+                # overlay last login/connect error if present
+                with client._lock:
+                    err = getattr(client, "_last_login_error", None)
+                if err:
+                    cv2.putText(canvas, f"Error: {err}", (GUI_WINDOW_W // 2 - 220, 540),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 60, 255), 1)
                 cv2.imshow("Kungfu Chess", canvas)
                 key = cv2.waitKey(RENDER_WAIT_MS)
 
@@ -794,12 +800,21 @@ def main():
                         try:
                             resp = client.connect_and_login(username, password)
                         except Exception as exc:
+                            # keep the app running on transient network/login failures
                             print(f"Could not connect or login: {exc}")
-                            break
+                            password = ""
+                            with client._lock:
+                                setattr(client, "_last_login_error", str(exc))
+                            # allow user to retry
+                            continue
 
                         if resp.get("type") == MsgType.OK:
+                            with client._lock:
+                                setattr(client, "_last_login_error", None)
                             current_state = "MENU"
                         else:
+                            with client._lock:
+                                setattr(client, "_last_login_error", resp.get("reason", "login failed"))
                             current_state = "LOGIN"
                             password = ""
                 elif key in (8, 127):
@@ -1016,7 +1031,10 @@ def main():
                         cv2.imshow("Kungfu Chess", canvas)
                         cv2.waitKey(2000)
                         client.clear_game_result()
-                        current_state = return_state
+                        # Reset mouse callback back to menu handler
+                        cv2.setMouseCallback("Kungfu Chess", _handle_mouse, mouse_click)
+                        current_state = "MENU"
+                        game_running = False
                         break
 
                     disc_player, disc_secs = client.get_disconnect_state()
@@ -1043,7 +1061,9 @@ def main():
 
                     key = cv2.waitKey(RENDER_WAIT_MS)
                     if key == ESC_KEY:
-                        current_state = return_state
+                        cv2.setMouseCallback("Kungfu Chess", _handle_mouse, mouse_click)
+                        current_state = "MENU"
+                        game_running = False
                         break
 
     finally:

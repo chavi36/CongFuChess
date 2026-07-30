@@ -1,0 +1,7 @@
+COMMAND_SUBJECT = "kungfuchess.commands"
+PLAYER_FRAME_SUBJECT = "kungfuchess.player_frames"
+SPECTATOR_FRAME_SUBJECT = "kungfuchess.spectator_frames"
+KEYFRAME_SUBJECT = "kungfuchess.keyframes"
+TERMINAL_EVENT_SUBJECT = "kungfuchess.terminal_events"
+MATCH_EVENT_SUBJECT = "kungfuchess.match_events"
+ROOM_EVENT_SUBJECT = "kungfuchess.room_events"

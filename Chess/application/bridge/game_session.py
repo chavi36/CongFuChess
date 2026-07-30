@@ -10,6 +10,7 @@ from typing import Optional
 from Core.engine.game_engine import GameEngine, RenderSnapshot
 from Core.input.controller import CommandExecutor, Command
 from Core.io.board_parser import load_board_from_csv
+from Core.model.clock import FakeClock
 from Core.model.config import PieceColor, EventTopic, CommandType
 from Core.model.player import Player
 from Core.realtime.event_bus import EventBus
@@ -39,7 +40,7 @@ class GameSession:
         self.black_observer = MoveObserver(color=PieceColor.BLACK.value, event_bus=self.event_bus)
 
         board = load_board_from_csv(board_csv)
-        self.engine = GameEngine(board, players=[white, black], event_bus=self.event_bus)
+        self.engine = GameEngine(board, clock=FakeClock(), players=[white, black], event_bus=self.event_bus)
         self.engine.arbiter.set_observers({
             PieceColor.WHITE.value: self.white_observer,
             PieceColor.BLACK.value: self.black_observer,

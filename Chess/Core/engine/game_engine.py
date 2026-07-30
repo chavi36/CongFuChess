@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import Optional, List
 
 from Core.model.board import BoardInterface
+from Core.model.clock import Clock, FakeClock
 from Core.model.game_state import GameState
 from Core.realtime.motion import MoveMotion, AirborneEvent
 from Core.realtime.real_time_arbiter import RealTimeArbiter
@@ -69,9 +70,11 @@ class RenderSnapshot:
 
 class GameEngine:
 
-    def __init__(self, board: BoardInterface, players=None, event_bus=None):
+    def __init__(self, board: BoardInterface, clock: Clock | None = None,
+                 players=None, event_bus=None):
         self.board       = board
-        self.state       = GameState(board)
+        self.clock       = clock or FakeClock()
+        self.state       = GameState(board, self.clock.now())
         self.rule_engine = RuleEngine(board)
         self.arbiter     = RealTimeArbiter(board, self.state, players=players, event_bus=event_bus)
         self.arbiter.set_rule_engine(self.rule_engine)
@@ -138,9 +141,9 @@ class GameEngine:
     # ------------------------------------------------------------------
 
     def advance_time(self, wait_time: int) -> None:
-        target_time = self.state.clock + wait_time
-        self.arbiter.advance_to(target_time)
-        self.state.clock = target_time
+        self.clock.advance(wait_time)
+        self.state.advance_clock(wait_time)
+        self.arbiter.advance_to(self.clock.now())
 
     def process_pending_moves(self, until_time: Optional[int] = None) -> None:
         target = until_time if until_time is not None else self.state.clock
